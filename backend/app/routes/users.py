@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, abort
 from app.models.user import User
 from app.models.base import db
+from flask_jwt_extended import jwt_required, get_jwt_identity
 import uuid
 
 users_bp = Blueprint('users', __name__)
@@ -22,10 +23,22 @@ def list_users():
 
 
 @users_bp.route('/', methods=['POST'])
+@jwt_required()
 def create_user():
     data = request.get_json() or {}
     if 'email' not in data:
         abort(400, 'email is required')
+
+    # Only admin users may create new users
+    identity = get_jwt_identity()
+    try:
+        identity_uuid = uuid.UUID(identity)
+    except Exception:
+        abort(401, 'invalid token identity')
+    current = User.query.filter_by(id=identity_uuid).first()
+    if not current or (current.role or '').upper() != 'ADMIN':
+        abort(403, 'admin privilege required')
+
     u = User(
         email=data.get('email'),
         name=data.get('name'),

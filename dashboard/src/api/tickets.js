@@ -1,0 +1,52 @@
+import { getToken } from './auth.js';
+
+const API_BASE = 'http://localhost:5000/api';
+
+const getAuthHeaders = () => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${getToken()}`,
+});
+
+export const getTickets = async () => {
+  const response = await fetch(`${API_BASE}/tickets/`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch tickets');
+  return response.json();
+};
+
+export const createTicket = async (ticketData) => {
+  const response = await fetch(`${API_BASE}/tickets/`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(ticketData),
+  });
+  if (!response.ok) throw new Error('Failed to create ticket');
+  return response.json();
+};
+
+export const getTicket = async (id) => {
+  const response = await fetch(`${API_BASE}/tickets/${id}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch ticket');
+  return response.json();
+};
+
+export const updateTicket = async (id, ticketData) => {
+  const response = await fetch(`${API_BASE}/tickets/${id}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(ticketData),
+  });
+  if (!response.ok) throw new Error('Failed to update ticket');
+  return response.json();
+};
+
+export const deleteTicket = async (id) => {
+  const response = await fetch(`${API_BASE}/tickets/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to delete ticket');
+};

@@ -1,10 +1,28 @@
-const users = [
-  { name: 'James Anderson', email: 'james@company.com', role: 'Agent', status: 'Active' },
-  { name: 'Lisa Brown', email: 'lisa@company.com', role: 'Admin', status: 'Active' },
-  { name: 'David Williams', email: 'david@company.com', role: 'Agent', status: 'Inactive' },
-];
+import { useState, useEffect } from 'react';
+import { getUsers } from '../api/users.js';
 
 export default function Users() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const data = await getUsers();
+        setUsers(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsers();
+  }, []);
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b">
@@ -32,9 +50,9 @@ export default function Users() {
               </td>
               <td className="px-6 py-4 text-sm">
                 <span className={`px-2 py-1 text-xs rounded-full ${
-                  u.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  u.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                 }`}>
-                  {u.status}
+                  {u.is_active ? 'Active' : 'Inactive'}
                 </span>
               </td>
             </tr>
