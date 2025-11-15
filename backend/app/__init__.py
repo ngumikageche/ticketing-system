@@ -1,4 +1,5 @@
 from flask import Flask
+import logging
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
@@ -36,7 +37,10 @@ def create_app():
         app.register_blueprint(comments_bp, url_prefix='/api/comments')
         app.register_blueprint(attachments_bp, url_prefix='/api/attachments')
     except Exception:
-        # If blueprints aren't present yet, app can still be created for migrations/tests.
-        pass
+        # Surface import / registration errors so they are visible in development
+        logging.exception("Failed to import blueprints for app; blueprints won't be registered")
+        # In development, re-raise so CLI commands like `flask routes` fail loudly and help debugging
+        if app.config.get('ENV') == 'development' or app.debug:
+            raise
 
     return app
