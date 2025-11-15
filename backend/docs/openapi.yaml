@@ -1,0 +1,501 @@
+openapi: 3.0.3
+info:
+  title: Support Ticketing System API
+  version: 1.0.0
+  description: Simple API for a support ticketing system (users, tickets, comments, attachments, KB).
+servers:
+  - url: http://localhost:5000
+paths:
+  /api/auth/login:
+    post:
+      summary: Log in and obtain a JWT access token
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+  /api/users/:
+    get:
+      summary: List all users
+      tags: [users]
+      responses:
+        '200':
+          description: A list of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      summary: Create a user
+      tags: [users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewUser'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /api/users/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [users]
+      responses:
+        '200':
+          description: A user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    put:
+      tags: [users]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    delete:
+      tags: [users]
+      responses:
+        '204':
+          description: Deleted
+
+  /api/tickets/:
+    get:
+      tags: [tickets]
+      summary: List tickets
+      responses:
+        '200':
+          description: A list of tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ticket'
+    post:
+      tags: [tickets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewTicket'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+  /api/tickets/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [tickets]
+      responses:
+        '200':
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+    patch:
+      tags: [tickets]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketUpdate'
+      responses:
+        '200':
+          description: Updated ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+    delete:
+      tags: [tickets]
+      responses:
+        '204':
+          description: Deleted
+
+  /api/comments/:
+    get:
+      tags: [comments]
+      responses:
+        '200':
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+    post:
+      tags: [comments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewComment'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+  /api/comments/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [comments]
+      responses:
+        '200':
+          description: A comment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+    patch:
+      tags: [comments]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentUpdate'
+      responses:
+        '200':
+          description: Updated comment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+    delete:
+      tags: [comments]
+      responses:
+        '204':
+          description: Deleted
+
+  /api/attachments/:
+    get:
+      tags: [attachments]
+      responses:
+        '200':
+          description: List of attachments
+    post:
+      tags: [attachments]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewAttachment'
+      responses:
+        '201':
+          description: Created
+  /api/attachments/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [attachments]
+      responses:
+        '200':
+          description: An attachment
+    delete:
+      tags: [attachments]
+      responses:
+        '204':
+          description: Deleted
+
+  /api/kb/articles:
+    get:
+      tags: [kb]
+      responses:
+        '200':
+          description: List of articles
+    post:
+      tags: [kb]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewArticle'
+      responses:
+        '201':
+          description: Created
+  /api/kb/articles/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [kb]
+      responses:
+        '200':
+          description: An article
+    patch:
+      tags: [kb]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArticleUpdate'
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [kb]
+      responses:
+        '204':
+          description: Deleted
+
+  /api/kb/tags:
+    get:
+      tags: [kb]
+      responses:
+        '200':
+          description: List of tags
+    post:
+      tags: [kb]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewTag'
+      responses:
+        '201':
+          description: Created
+  /api/kb/tags/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [kb]
+      responses:
+        '200':
+          description: A tag
+    patch:
+      tags: [kb]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagUpdate'
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [kb]
+      responses:
+        '204':
+          description: Deleted
+
+  /api/dashboard/:
+    get:
+      tags: [dashboard]
+      responses:
+        '200':
+          description: Dashboard overview
+
+components:
+  parameters:
+    id:
+      name: id_
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+        is_active:
+          type: boolean
+    NewUser:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+    UserUpdate:
+      type: object
+      properties:
+        email: { type: string }
+        name: { type: string }
+        role: { type: string }
+
+    Ticket:
+      type: object
+      properties:
+        id: { type: string }
+        ticket_id: { type: string }
+        subject: { type: string }
+        description: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        requester_id: { type: string }
+        assignee_id: { type: string }
+    NewTicket:
+      type: object
+      required: [subject, requester_id]
+      properties:
+        ticket_id: { type: string }
+        subject: { type: string }
+        description: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        requester_id: { type: string }
+        assignee_id: { type: string }
+    TicketUpdate:
+      type: object
+      properties:
+        subject: { type: string }
+        description: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        assignee_id: { type: string }
+
+    Comment:
+      type: object
+      properties:
+        id: { type: string }
+        content: { type: string }
+        ticket_id: { type: string }
+        author_id: { type: string }
+    NewComment:
+      type: object
+      required: [content, ticket_id, author_id]
+      properties:
+        content: { type: string }
+        ticket_id: { type: string }
+        author_id: { type: string }
+    CommentUpdate:
+      type: object
+      properties:
+        content: { type: string }
+
+    Attachment:
+      type: object
+      properties:
+        id: { type: string }
+        filename: { type: string }
+        url: { type: string }
+        type: { type: string }
+        size: { type: integer }
+        ticket_id: { type: string }
+    NewAttachment:
+      type: object
+      required: [filename, url, ticket_id, uploaded_by]
+      properties:
+        filename: { type: string }
+        url: { type: string }
+        type: { type: string }
+        size: { type: integer }
+        ticket_id: { type: string }
+        uploaded_by: { type: string }
+
+    KnowledgeBaseArticle:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        content: { type: string }
+        author_id: { type: string }
+        views: { type: integer }
+        is_public: { type: boolean }
+        tags: 
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+    NewArticle:
+      type: object
+      required: [title, content, author_id]
+      properties:
+        title: { type: string }
+        content: { type: string }
+        author_id: { type: string }
+        is_public: { type: boolean }
+        tags:
+          type: array
+          items:
+            type: string
+
+    Tag:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: string }
+    NewTag:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        color: { type: string }
+    TagUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        color: { type: string }
+
+tags:
+  - name: auth
+    description: Authentication endpoints
+  - name: users
+  - name: tickets
+  - name: comments
+  - name: attachments
+  - name: kb
+  - name: dashboard
