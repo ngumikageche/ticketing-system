@@ -1,26 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import StatsCard from '../components/StatsCard';
 import LineChart from '../components/LineChart';
 import DonutChart from '../components/DonutChart';
 import TicketTable from '../components/TicketTable';
-import { getDashboard} from '../api/dashboard.js';
+import { getDashboard, getTicketsByStatus, getAgentPerformance, getTicketTrends } from '../api/dashboard.js';
 import { getTickets as getTicketsFromAPI } from '../api/tickets.js';
+import { getComments } from '../api/comments.js';
 
 export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState(null);
+  const [statusBreakdown, setStatusBreakdown] = useState([]);
+  const [agentPerformance, setAgentPerformance] = useState([]);
+  const [ticketTrends, setTicketTrends] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashboard, ticketsData] = await Promise.all([
+        const [dashboard, statusData, agentData, trendsData, ticketsData, commentsData] = await Promise.all([
           getDashboard(),
-          getTicketsFromAPI()
+          getTicketsByStatus(),
+          getAgentPerformance(),
+          getTicketTrends(),
+          getTicketsFromAPI(),
+          getComments()
         ]);
         setDashboardData(dashboard);
+        setStatusBreakdown(statusData);
+        setAgentPerformance(agentData);
+        setTicketTrends(trendsData);
         setTickets(ticketsData);
+        setComments(commentsData);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -30,20 +43,27 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
+  const commentCount = useMemo(() => {
+    const map = {};
+    comments.forEach(comment => {
+      map[comment.ticket_id] = (map[comment.ticket_id] || 0) + 1;
+    });
+    return map;
+  }, [comments]);
+
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
-  // Assuming dashboardData has openTickets, responseTime, resolutionTime, slaCompliance
-  // If not, keep mock
+  // Stats from dashboard overview
   const stats = dashboardData ? [
-    { title: "Open Tickets", value: dashboardData.openTickets || "265" },
-    { title: "First Response Time", value: dashboardData.responseTime || "30m" },
-    { title: "Avg Resolution Time", value: dashboardData.resolutionTime || "2h" },
-    { title: "SLA Compliance", value: dashboardData.slaCompliance || "92%", highlight: true }
+    { title: "Total Tickets", value: dashboardData.totalTickets || "0" },
+    { title: "Resolved Tickets", value: dashboardData.resolvedTickets || "0" },
+    { title: "Avg Response Time", value: dashboardData.avgResponse || "N/A" },
+    { title: "SLA Compliance", value: "92%", highlight: true } // Mock for now
   ] : [
-    { title: "Open Tickets", value: "265" },
-    { title: "First Response Time", value: "30m" },
-    { title: "Avg Resolution Time", value: "2h" },
+    { title: "Total Tickets", value: "0" },
+    { title: "Resolved Tickets", value: "0" },
+    { title: "Avg Response Time", value: "N/A" },
     { title: "SLA Compliance", value: "92%", highlight: true }
   ];
 
@@ -58,12 +78,12 @@ export default function Dashboard() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <LineChart />
-        <DonutChart />
+        <LineChart data={ticketTrends} />
+        <DonutChart data={statusBreakdown} />
       </div>
 
       {/* Ticket table */}
-      <TicketTable tickets={tickets} />
+      <TicketTable tickets={tickets} commentCount={commentCount} />
     </div>
   );
 }

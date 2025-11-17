@@ -1,3 +1,5 @@
+import { Eye, Edit, Trash2 } from 'lucide-react';
+
 const statusBadge = {
   Open: 'bg-green-100 text-green-800',
   'In Progress': 'bg-yellow-100 text-yellow-800',
@@ -12,12 +14,12 @@ const priorityBadge = {
   Low: 'text-green-600 font-medium',
 };
 
-export default function TicketRow({ ticket }) {
+export default function TicketRow({ ticket, userMap, onView, onEdit, onDelete }) {
   return (
     <tr className="hover:bg-gray-50 transition">
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">{ticket.ticket_id || ticket.id}</td>
       <td className="px-6 py-4 text-sm text-gray-900">{ticket.subject}</td>
-      <td className="px-6 py-4 text-sm text-gray-600">{ticket.requester_id}</td>
+      <td className="px-6 py-4 text-sm text-gray-600">{userMap[ticket.requester_id] || ticket.requester_name || ticket.requester_id}</td>
       <td className="px-6 py-4 whitespace-nowrap">
         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusBadge[ticket.status] || 'bg-gray-100 text-gray-800'}`}>
           {ticket.status}
@@ -26,7 +28,32 @@ export default function TicketRow({ ticket }) {
       <td className={`px-6 py-4 whitespace-nowrap text-sm ${priorityBadge[ticket.priority] || 'text-gray-600'}`}>
         {ticket.priority}
       </td>
-      <td className="px-6 py-4 text-sm text-gray-500">{ticket.assignee_id || 'Unassigned'}</td>
+      <td className="px-6 py-4 text-sm text-gray-500">{userMap[ticket.assignee_id] || 'Unassigned'}</td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => onView(ticket)}
+            className="text-blue-600 hover:text-blue-900"
+            title="View"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={() => onEdit(ticket)}
+            className="text-green-600 hover:text-green-900"
+            title="Edit"
+          >
+            <Edit size={16} />
+          </button>
+          <button
+            onClick={() => onDelete(ticket)}
+            className="text-red-600 hover:text-red-900"
+            title="Delete"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </td>
     </tr>
   );
 }

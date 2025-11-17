@@ -50,3 +50,11 @@ export const deleteUser = async (id) => {
   });
   if (!response.ok) throw new Error('Failed to delete user');
 };
+
+export const getCurrentUser = async () => {
+  const response = await fetch(`${API_BASE}/auth/me`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch current user');
+  return response.json();
+};

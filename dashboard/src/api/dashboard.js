@@ -14,3 +14,27 @@ export const getDashboard = async () => {
   if (!response.ok) throw new Error('Failed to fetch dashboard data');
   return response.json();
 };
+
+export const getTicketsByStatus = async () => {
+  const response = await fetch(`${API_BASE}/dashboard/reports/tickets-by-status`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch tickets by status');
+  return response.json();
+};
+
+export const getAgentPerformance = async () => {
+  const response = await fetch(`${API_BASE}/dashboard/reports/agent-performance`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch agent performance');
+  return response.json();
+};
+
+export const getTicketTrends = async () => {
+  const response = await fetch(`${API_BASE}/dashboard/reports/ticket-trends`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch ticket trends');
+  return response.json();
+};

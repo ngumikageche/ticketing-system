@@ -6,11 +6,13 @@ import KnowledgeBase from './pages/KnowledgeBase';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import Login from './pages/Login';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/login" element={<Login />} />
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/tickets" element={<Tickets />} />

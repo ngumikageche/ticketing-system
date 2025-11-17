@@ -1,20 +1,27 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
-const data = [
-  { name: 'Urgent', value: 12, color: '#ef4444' },
-  { name: 'High', value: 28, color: '#f97316' },
-  { name: 'Medium', value: 45, color: '#f59e0b' },
-  { name: 'Low', value: 15, color: '#10b981' },
+const mockData = [
+  { name: 'Open', value: 120, color: '#ef4444' },
+  { name: 'In Progress', value: 80, color: '#f97316' },
+  { name: 'Closed', value: 200, color: '#10b981' },
 ];
 
-export default function DonutChart() {
+const colors = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6'];
+
+export default function DonutChart({ data }) {
+  const chartData = data && data.length > 0 ? data.map((item, index) => ({
+    name: item.status,
+    value: item.count,
+    color: colors[index % colors.length]
+  })) : mockData;
+
   return (
     <div className="bg-white p-5 rounded-lg shadow-sm">
-      <h3 className="text-lg font-medium mb-4">Tickets by Priority</h3>
+      <h3 className="text-lg font-medium mb-4">Tickets by Status</h3>
       <ResponsiveContainer width="100%" height={220}>
         <PieChart>
           <Pie
-            data={data}
+            data={chartData}
             cx="50%"
             cy="50%"
             innerRadius={60}
@@ -22,7 +29,7 @@ export default function DonutChart() {
             paddingAngle={2}
             dataKey="value"
           >
-            {data.map((entry, i) => (
+            {chartData.map((entry, i) => (
               <Cell key={`cell-${i}`} fill={entry.color} />
             ))}
           </Pie>

@@ -1,7 +1,9 @@
 import { Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
-import { useLocation } from 'react-router-dom';
+import { getToken } from '../api/auth.js';
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -14,6 +16,15 @@ const pageTitles = {
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      navigate('/login');
+    }
+  }, [navigate]);
+
   const currentPath = location.pathname;
   const title = pageTitles[currentPath] || 'Dashboard';
 
