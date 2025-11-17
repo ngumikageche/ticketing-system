@@ -253,3 +253,26 @@ def add_participant(conv_id):
     p = ConversationParticipant(conversation_id=conv.id, user_id=user_id)
     p.save()
     return jsonify(p.to_dict()), 201
+
+
+@conversations_bp.route('/<id_>', methods=['DELETE'])
+@jwt_required_optional
+def delete_conversation(id_):
+    conv = _get_or_404(Conversation, id_)
+    
+    # Get current user from JWT token
+    identity = get_jwt_identity()
+    try:
+        current_user_id = uuid.UUID(identity)
+    except ValueError:
+        abort(401, 'invalid token')
+    
+    # Check if current user is a participant in this conversation
+    participant = ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=current_user_id).first()
+    if not participant:
+        abort(403, 'not a participant in this conversation')
+    
+    # Soft delete the conversation
+    conv.delete(soft=True)
+    
+    return '', 204

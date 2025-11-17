@@ -51,13 +51,12 @@ export const sendConversationMessage = async (conversationId, messageData) => {
   return response.json();
 };
 
-export const addConversationParticipant = async (conversationId, userId) => {
-  const response = await fetch(`${API_BASE}/conversations/${conversationId}/participants`, {
-    method: 'POST',
+export const deleteConversation = async (conversationId) => {
+  const response = await fetch(`${API_BASE}/conversations/${conversationId}`, {
+    method: 'DELETE',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ user_id: userId }),
   });
-  if (!response.ok) throw new Error('Failed to add participant');
+  if (!response.ok) throw new Error('Failed to delete conversation');
   return response.json();
 };
 

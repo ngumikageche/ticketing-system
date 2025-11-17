@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { MessageCircle, Users, Ticket, Plus } from 'lucide-react';
-import { getConversations, getConversation } from '../api/conversations.js';
+import { MessageCircle, Users, Ticket, Plus, Trash2 } from 'lucide-react';
+import { getConversations, getConversation, deleteConversation } from '../api/conversations.js';
 import { getCurrentUser } from '../api/users.js';
 import { useWebSocket } from '../contexts/WebSocketContext.jsx';
 import CreateConversationModal from './CreateConversationModal.jsx';
@@ -12,6 +12,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [conversationDetails, setConversationDetails] = useState({});
+  const [deletingConversationId, setDeletingConversationId] = useState(null);
   const { socket } = useWebSocket();
 
   const fetchConversationDetails = async (conversationId) => {
@@ -23,6 +24,30 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
       }));
     } catch (err) {
       console.error('Failed to fetch conversation details:', err);
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId) => {
+    if (!confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setDeletingConversationId(conversationId);
+      await deleteConversation(conversationId);
+      
+      // Remove from local state
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      
+      // If the deleted conversation was selected, clear selection
+      if (selectedConversationId === conversationId) {
+        onSelectConversation(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+      alert('Failed to delete conversation. Please try again.');
+    } finally {
+      setDeletingConversationId(null);
     }
   };
 
@@ -137,27 +162,39 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
               Direct Messages
             </h3>
             {groupedConversations.direct.map(conversation => (
-              <button
-                key={conversation.id}
-                onClick={() => onSelectConversation(conversation)}
-                className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
-                  selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="text-gray-600">
-                    {getConversationIcon(conversation.type)}
+              <div key={conversation.id} className="relative group">
+                <button
+                  onClick={() => onSelectConversation(conversation)}
+                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
+                    selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-gray-600">
+                      {getConversationIcon(conversation.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {getConversationDisplayName(conversation)}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        Last message preview...
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {getConversationDisplayName(conversation)}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      Last message preview...
-                    </p>
-                  </div>
-                </div>
-              </button>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteConversation(conversation.id);
+                  }}
+                  disabled={deletingConversationId === conversation.id}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-opacity disabled:opacity-50"
+                  title="Delete conversation"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -169,27 +206,39 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
               Groups
             </h3>
             {groupedConversations.group.map(conversation => (
-              <button
-                key={conversation.id}
-                onClick={() => onSelectConversation(conversation)}
-                className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
-                  selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="text-gray-600">
-                    {getConversationIcon(conversation.type)}
+              <div key={conversation.id} className="relative group">
+                <button
+                  onClick={() => onSelectConversation(conversation)}
+                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
+                    selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-gray-600">
+                      {getConversationIcon(conversation.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {getConversationDisplayName(conversation)}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        Last message preview...
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {getConversationDisplayName(conversation)}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      Last message preview...
-                    </p>
-                  </div>
-                </div>
-              </button>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteConversation(conversation.id);
+                  }}
+                  disabled={deletingConversationId === conversation.id}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-opacity disabled:opacity-50"
+                  title="Delete conversation"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -201,27 +250,39 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
               Ticket Chats
             </h3>
             {groupedConversations.ticket.map(conversation => (
-              <button
-                key={conversation.id}
-                onClick={() => onSelectConversation(conversation)}
-                className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
-                  selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="text-gray-600">
-                    {getConversationIcon(conversation.type)}
+              <div key={conversation.id} className="relative group">
+                <button
+                  onClick={() => onSelectConversation(conversation)}
+                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
+                    selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-gray-600">
+                      {getConversationIcon(conversation.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {getConversationDisplayName(conversation)}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        Last message preview...
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {getConversationDisplayName(conversation)}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      Last message preview...
-                    </p>
-                  </div>
-                </div>
-              </button>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteConversation(conversation.id);
+                  }}
+                  disabled={deletingConversationId === conversation.id}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-opacity disabled:opacity-50"
+                  title="Delete conversation"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             ))}
           </div>
         )}

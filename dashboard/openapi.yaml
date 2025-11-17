@@ -230,7 +230,7 @@ paths:
               properties:
                 webhook_url:
                   type: string
-                  description: Webhook URL for real-time notifications. Can be an external URL or internal path starting with /
+                  description: Webhook URL for receiving real-time notifications. Can be an external URL or internal path starting with /
       responses:
         '200':
           description: Updated webhook URL
@@ -780,10 +780,21 @@ paths:
     delete:
       tags: [conversations]
       summary: Delete conversation
-      description: Delete a conversation (participants only)
+      description: |
+        Delete a conversation (participants only). 
+        Checks the conversation status and type before deletion:
+        - Direct conversations can be deleted by participants
+        - Group conversations can be deleted by admins or creators
+        - Ticket conversations cannot be deleted (use ticket deletion instead)
       responses:
         '204':
           description: Conversation deleted
+        '403':
+          description: Not authorized to delete this conversation
+        '404':
+          description: Conversation not found
+        '409':
+          description: Conversation cannot be deleted due to its current status or type
 
   /api/conversations/{id_}:
     parameters:
