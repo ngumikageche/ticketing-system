@@ -240,12 +240,13 @@ def send_webhook_notification(notification, data=None):
     
     try:
         parsed_url = urlparse(user.webhook_url)
-        # Get current app's host
-        if request:
+        # Get current app's host. Accessing `request` may raise if no request
+        # context exists, so guard with try/except and fall back to the
+        # application's SERVER_NAME or a sensible default.
+        try:
             current_host = request.host
-        else:
-            # Fallback if no request context
-            current_host = current_app.config.get('SERVER_NAME', 'localhost:5000')
+        except Exception:
+            current_host = current_app.config.get('SERVER_NAME') or 'localhost:5000'
         
         # Check if it's an internal URL
         is_internal = (
@@ -265,7 +266,16 @@ def send_webhook_notification(notification, data=None):
                     json=payload,
                     headers={'Content-Type': 'application/json'}
                 )
-                response.raise_for_status()
+                # Werkzeug test client returns a WrapperTestResponse which
+                # does not implement raise_for_status(); handle both cases.
+                try:
+                    if hasattr(response, 'raise_for_status'):
+                        response.raise_for_status()
+                    else:
+                        if getattr(response, 'status_code', 0) >= 400:
+                            raise requests.RequestException(f'Internal webhook failed: {response.status_code}')
+                except Exception:
+                    raise
                 current_app.logger.info(f"Internal webhook sent to {user.webhook_url} for notification {notification.id}")
         elif is_internal:
             # For same-host URLs, still use HTTP but log it
@@ -433,6 +443,24 @@ def _default_ticket_created_handler(ticket):
         )
         notification.save()
         _send_webhook_for_notification(notification)
+
+    # Notify the assignee that they have been assigned this ticket
+    if ticket.assignee_id:
+        try:
+            assignee_notification = Notification(
+                user_id=ticket.assignee_id,
+                type='ticket_assigned',
+                message=f'You have been assigned ticket "{ticket.subject}"',
+                related_id=ticket.id,
+                related_type='ticket'
+            )
+            assignee_notification.save()
+            _send_webhook_for_notification(assignee_notification, ticket.to_dict())
+        except Exception:
+            # Ensure hook errors don't break ticket creation flow
+            import logging
+
+            logging.exception('error creating assignee notification')
 
 
 def _default_ticket_updated_handler(ticket):

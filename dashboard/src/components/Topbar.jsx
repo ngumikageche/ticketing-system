@@ -16,7 +16,15 @@ export default function Topbar({ title = 'Dashboard' }) {
 
   const handleMarkAsRead = async (id) => {
     console.log('Marking notification as read:', id);
-    markNotificationAsRead(id);
+    await markNotificationAsRead(id);
+  };
+
+  const handleMarkAllAsRead = async () => {
+    console.log('Marking all notifications as read');
+    const unreadNotifications = notifications.filter(n => !n.is_read);
+    for (const notification of unreadNotifications) {
+      await markNotificationAsRead(notification.id);
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
@@ -63,7 +71,17 @@ export default function Topbar({ title = 'Dashboard' }) {
       {showDropdown && (
         <div className="absolute top-full right-6 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           <div className="p-4 border-b">
-            <h3 className="font-semibold">Notifications</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Notifications</h3>
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllAsRead}
+                  className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  Mark all as read
+                </button>
+              )}
+            </div>
             <p className="text-sm text-gray-600">
               {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'} • {notifications.length} total
             </p>

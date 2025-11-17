@@ -74,6 +74,7 @@ The system sends notifications for these events:
 - `new_ticket`: New ticket created (admins only)
 - `ticket_updated`: Ticket assigned to user was updated
 - `ticket_deleted`: Ticket assigned to user was deleted
+- `ticket_assigned`: User was assigned a ticket
 
 **Users:**
 - `user_created`: New user created (admins only)

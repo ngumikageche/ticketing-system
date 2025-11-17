@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
 import { getToken } from '../api/auth.js';
-import { processWebhookPayload, getNotifications } from '../api/notifications.js';
+import { processWebhookPayload, getNotifications, markNotificationAsRead as markNotificationAsReadAPI } from '../api/notifications.js';
 import { getCurrentUser } from '../api/users.js';
 
 const WebSocketContext = createContext();
@@ -259,14 +259,20 @@ export const WebSocketProvider = ({ children }) => {
     setNotifications([]);
   };
 
-  const markNotificationAsRead = (id) => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.id === id 
-          ? { ...notification, is_read: true } 
-          : notification
-      )
-    );
+  const markNotificationAsRead = async (id) => {
+    try {
+      await markNotificationAsReadAPI(id);
+      // Update local state only after successful API call
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === id 
+            ? { ...notification, is_read: true } 
+            : notification
+        )
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
   const getRealtimeData = (type, id) => {

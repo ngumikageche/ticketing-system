@@ -823,7 +823,7 @@ components:
           enum: [
             comment_on_ticket, reply_to_comment, new_ticket, 
             ticket_updated, ticket_deleted, comment_updated, comment_deleted,
-            user_created, user_deactivated, kb_article_created,
+            user_created, user_deactivated, ticket_assigned, kb_article_created,
             attachment_added, attachment_updated, attachment_deleted,
             webhook_test
           ]
@@ -979,7 +979,7 @@ components:
               enum: [
                 comment_on_ticket, reply_to_comment, new_ticket,
                 ticket_updated, ticket_deleted, comment_updated, comment_deleted,
-                user_created, user_deactivated, kb_article_created,
+                user_created, user_deactivated, ticket_assigned, kb_article_created,
                 attachment_added, attachment_updated, attachment_deleted,
                 webhook_test
               ]
