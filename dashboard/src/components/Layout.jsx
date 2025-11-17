@@ -8,6 +8,7 @@ import { getToken } from '../api/auth.js';
 const pageTitles = {
   '/': 'Dashboard',
   '/tickets': 'Tickets',
+  '/chat': 'Chat',
   '/knowledge-base': 'Knowledge Base',
   '/reports': 'Reports',
   '/users': 'Users',
@@ -32,6 +33,7 @@ export default function Layout() {
   const pathToLabel = {
     '/': 'Dashboard',
     '/tickets': 'Tickets',
+    '/chat': 'Chat',
     '/knowledge-base': 'Knowledge Base',
     '/reports': 'Reports',
     '/users': 'Users',

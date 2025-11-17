@@ -17,8 +17,10 @@ class User(BaseModel):
     requested_tickets = db.relationship('Ticket', foreign_keys='Ticket.requester_id', back_populates='requester')
     assigned_tickets = db.relationship('Ticket', foreign_keys='Ticket.assignee_id', back_populates='assignee')
     comments = db.relationship('Comment', back_populates='author')
+    messages = db.relationship('Message', back_populates='sender')
     articles = db.relationship('KnowledgeBaseArticle', back_populates='author')
     notifications = db.relationship('Notification', back_populates='user')
+    conversation_participations = db.relationship('ConversationParticipant', back_populates='user')
 
     def set_password(self, password):
         self.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()

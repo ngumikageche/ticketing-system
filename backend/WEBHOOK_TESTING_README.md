@@ -106,6 +106,8 @@ if (data) {
 
 ### Supported Events
 - **Comments**: Created, updated, deleted
+- **Messages**: Created, deleted
+- **Conversations**: Created
 - **Tickets**: Created, updated, deleted
 - **Users**: Created, updated, deleted
 - **Knowledge Base**: Articles created, updated, deleted
@@ -130,7 +132,7 @@ For internal webhooks (same app): `"/api/notifications/webhooks/notifications"`
     "type": "comment_on_ticket",
     "message": "New comment on your ticket 'Subject' by Author",
     "related_id": "entity-uuid",
-    "related_type": "comment|ticket|user|kb_article|attachment",
+    "related_type": "comment|ticket|user|kb_article|attachment|message",
     "created_at": "2025-11-17T12:00:00Z"
   }
 }

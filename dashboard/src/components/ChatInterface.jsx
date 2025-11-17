@@ -1,0 +1,375 @@
+import { useState, useEffect, useRef } from 'react';
+import { Send, Paperclip, Smile, MessageCircle, Users, Ticket } from 'lucide-react';
+import { getConversationMessages, sendConversationMessage, getTicketMessages, sendTicketMessage, getConversation } from '../api/conversations.js';
+import { getCurrentUser, getUser } from '../api/users.js';
+import { useWebSocket } from '../contexts/WebSocketContext.jsx';
+
+const ChatInterface = ({ conversation }) => {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [conversationDetails, setConversationDetails] = useState(null);
+  const [userMap, setUserMap] = useState(new Map());
+  const messagesEndRef = useRef(null);
+  const { socket, getRealtimeData } = useWebSocket();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!conversation) return;
+
+      try {
+        setLoading(true);
+        const fetchPromises = [
+          conversation.type === 'ticket'
+            ? getTicketMessages(conversation.ticket_id)
+            : getConversationMessages(conversation.id),
+          getCurrentUser()
+        ];
+
+        // Fetch conversation details for non-ticket conversations to get participants
+        if (conversation.type !== 'ticket') {
+          fetchPromises.push(getConversation(conversation.id));
+        }
+
+        const results = await Promise.all(fetchPromises);
+        const messagesData = results[0];
+        const userData = results[1];
+        const conversationData = results[2];
+
+        setMessages(messagesData);
+        setCurrentUser(userData);
+        if (conversationData) {
+          setConversationDetails(conversationData);
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [conversation]);
+
+  // Fetch sender names for messages
+  useEffect(() => {
+    const fetchSenderNames = async () => {
+      if (!messages.length || !currentUser) return;
+
+      const senderIds = [...new Set(messages.map(msg => msg.sender_id || msg.author_id).filter(id => id && id !== currentUser.id))];
+      const newUserMap = new Map(userMap);
+
+      for (const id of senderIds) {
+        if (!newUserMap.has(id)) {
+          try {
+            const user = await getUser(id);
+            newUserMap.set(id, user.name || user.username || 'Unknown');
+          } catch (err) {
+            console.error(`Failed to fetch user ${id}:`, err);
+            newUserMap.set(id, 'Unknown');
+          }
+        }
+      }
+
+      setUserMap(newUserMap);
+    };
+
+    fetchSenderNames();
+  }, [messages, currentUser]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Listen for real-time message updates
+  useEffect(() => {
+    if (!socket || !conversation) return;
+
+    const handleNewMessage = (payload) => {
+      const { data } = payload;
+      // Check if the message belongs to the current conversation
+      const belongsToConversation = 
+        (conversation.type === 'ticket' && data.ticket_id === conversation.ticket_id) ||
+        (conversation.type !== 'ticket' && data.conversation_id === conversation.id);
+
+      if (belongsToConversation) {
+        setMessages(prev => {
+          // Avoid duplicates
+          const exists = prev.find(msg => msg.id === data.id);
+          if (exists) return prev;
+          return [...prev, data];
+        });
+
+        // Fetch sender name if not already known
+        const senderId = data.sender_id || data.author_id;
+        if (senderId && senderId !== currentUser?.id && !userMap.has(senderId)) {
+          getUser(senderId).then(user => {
+            setUserMap(prev => new Map(prev).set(senderId, user.name || user.username || 'Unknown'));
+          }).catch(err => {
+            console.error(`Failed to fetch user ${senderId}:`, err);
+            setUserMap(prev => new Map(prev).set(senderId, 'Unknown'));
+          });
+        }
+      }
+    };
+
+    socket.on('message.created', handleNewMessage);
+
+    return () => {
+      socket.off('message.created', handleNewMessage);
+    };
+  }, [socket, conversation]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || sending) return;
+
+    try {
+      setSending(true);
+      const messageData = conversation.type === 'ticket'
+        ? {
+            content: newMessage.trim(),
+            ticket_id: conversation.ticket_id,
+            author_id: currentUser.id
+          }
+        : {
+            content: newMessage.trim(),
+            sender_id: currentUser.id,
+            message_type: 'text'
+          };
+
+      const sentMessage = conversation.type === 'ticket'
+        ? await sendTicketMessage(messageData)
+        : await sendConversationMessage(conversation.id, messageData);
+
+      setMessages(prev => [...prev, sentMessage]);
+      setNewMessage('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDate = (timestamp) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
+  const groupMessagesByDate = (messages) => {
+    const groups = {};
+    messages.forEach(message => {
+      const date = formatDate(message.created_at);
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(message);
+    });
+    return groups;
+  };
+
+  if (!conversation) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50">
+        <div className="text-center text-gray-500">
+          <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
+          <p>Choose a conversation from the list to start messaging</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) return <div className="flex-1 p-4">Loading messages...</div>;
+  if (error) return <div className="flex-1 p-4 text-red-500">Error: {error}</div>;
+
+  const messageGroups = groupMessagesByDate(messages);
+
+  // Get recipient name for direct messages
+  const getRecipientName = () => {
+    if (conversation.type !== 'direct') return null;
+    
+    // First try to get from conversation participants
+    if (conversationDetails?.participants) {
+      const otherParticipant = conversationDetails.participants.find(p => p.user_id !== currentUser?.id);
+      if (otherParticipant?.user_name) {
+        return otherParticipant.user_name;
+      }
+    }
+    
+    // Fallback to finding from messages
+    const otherUserMessage = messages.find(msg => msg.sender_id !== currentUser?.id);
+    if (otherUserMessage?.sender_name) {
+      return otherUserMessage.sender_name;
+    }
+    
+    // Last resort
+    return 'Direct Message';
+  };
+
+  return (
+    <div className="flex-1 flex flex-col bg-white">
+      {/* Chat Header */}
+      <div className="p-4 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+            {conversation.type === 'direct' && <MessageCircle className="w-5 h-5 text-gray-600" />}
+            {conversation.type === 'group' && <Users className="w-5 h-5 text-gray-600" />}
+            {conversation.type === 'ticket' && <Ticket className="w-5 h-5 text-gray-600" />}
+          </div>
+          <div>
+            <h3 className="font-medium text-gray-900">
+              {conversation.type === 'ticket'
+                ? `Ticket: ${conversation.title || conversation.ticket_id}`
+                : conversation.type === 'direct'
+                ? getRecipientName()
+                : conversation.title || 'Untitled Conversation'
+              }
+            </h3>
+            <p className="text-sm text-gray-500">
+              {conversation.type === 'group' && `${conversationDetails?.participants?.length || conversation.participants?.length || 0} members`}
+              {conversation.type === 'ticket' && 'Support conversation'}
+              {conversation.type === 'direct' && 'Direct message'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {Object.entries(messageGroups).map(([date, dateMessages]) => (
+          <div key={date}>
+            <div className="text-center mb-4">
+              <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                {date}
+              </span>
+            </div>
+            {dateMessages.map((message, index) => {
+              const isCurrentUser = message.sender_id === currentUser?.id;
+              const showAvatar = !isCurrentUser && (
+                index === 0 ||
+                dateMessages[index - 1].sender_id !== message.sender_id
+              );
+
+              return (
+                <div
+                  key={message.id}
+                  className={`flex gap-3 mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                >
+                  {!isCurrentUser && (
+                    <div className="w-8 h-8 flex-shrink-0">
+                      {showAvatar && (
+                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-medium text-gray-600">
+                          {(userMap.get(message.sender_id || message.author_id) || '?').charAt(0).toUpperCase()}
+                        </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className={`max-w-xs lg:max-w-md ${isCurrentUser ? 'order-1' : 'order-2'}`}>
+                    {!isCurrentUser && showAvatar && (
+                      <div className="text-xs text-gray-500 mb-1 px-3">
+                        {userMap.get(message.sender_id || message.author_id) || 'Unknown'}
+                      </div>
+                    )}
+
+                    <div
+                      className={`px-3 py-2 rounded-lg ${
+                        isCurrentUser
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-900'
+                      }`}
+                    >
+                      <p className="text-sm">{message.content}</p>
+                    </div>
+
+                    <div className={`text-xs text-gray-500 mt-1 px-3 ${
+                      isCurrentUser ? 'text-right' : 'text-left'
+                    }`}>
+                      {formatTime(message.created_at)}
+                    </div>
+                  </div>
+
+                  {isCurrentUser && (
+                    <div className="w-8 h-8 flex-shrink-0">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-medium text-white">
+                          {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Message Input */}
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <form onSubmit={handleSendMessage} className="flex gap-2">
+          <button
+            type="button"
+            className="p-2 text-gray-400 hover:text-gray-600"
+            disabled
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
+
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={sending}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="p-2 text-gray-400 hover:text-gray-600"
+            disabled
+          >
+            <Smile className="w-5 h-5" />
+          </button>
+
+          <button
+            type="submit"
+            disabled={!newMessage.trim() || sending}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Send className="w-4 h-4" />
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default ChatInterface;

@@ -82,6 +82,7 @@ def create_app():
         from .routes.attachments import attachments_bp
         from .routes.docs import docs_bp
         from .routes.notifications import notifications_bp
+        from .routes.conversations import conversations_bp
         app.register_blueprint(auth_bp, url_prefix='/api/auth')
         app.register_blueprint(tickets_bp, url_prefix='/api/tickets')
         app.register_blueprint(kb_bp, url_prefix='/api/kb')
@@ -91,6 +92,7 @@ def create_app():
         app.register_blueprint(attachments_bp, url_prefix='/api/attachments')
         app.register_blueprint(docs_bp, url_prefix='')
         app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
+        app.register_blueprint(conversations_bp, url_prefix='/api/conversations')
     except Exception:
         # Surface import / registration errors so they are visible in development
         logging.exception("Failed to import blueprints for app; blueprints won't be registered")

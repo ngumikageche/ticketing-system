@@ -70,6 +70,10 @@ The system sends notifications for these events:
 - `comment_updated`: Comment on user's ticket was edited
 - `comment_deleted`: Comment on user's ticket was deleted
 
+**Messages:**
+- `message_on_ticket`: New message on user's ticket
+- `message_deleted`: Message on user's ticket was deleted
+
 **Tickets:**
 - `new_ticket`: New ticket created (admins only)
 - `ticket_updated`: Ticket assigned to user was updated
@@ -158,6 +162,22 @@ function useNotifications() {
             }
           });
           break;
+          
+        case 'message':
+          // Update or add message in the list
+          setMessages(prev => {
+            const existingIndex = prev.findIndex(m => m.id === data.id);
+            if (existingIndex >= 0) {
+              // Update existing message
+              const updated = [...prev];
+              updated[existingIndex] = data;
+              return updated;
+            } else {
+              // Add new message
+              return [...prev, data];
+            }
+          });
+          break;
       }
     }
 
@@ -197,6 +217,13 @@ app.post('/api/webhooks/notifications', express.json(), (req, res) => {
         updateCommentInStore(data);
         // Emit to connected WebSocket clients
         io.emit('comment.update', data);
+        break;
+        
+      case 'message':
+        // Update message in cache/database
+        updateMessageInStore(data);
+        // Emit to connected WebSocket clients
+        io.emit('message.update', data);
         break;
         
       case 'user':
@@ -290,6 +317,11 @@ socket.on('ticket.update', (payload) => {
 socket.on('comment.update', (payload) => {
   const { data } = payload;
   updateCommentInUI(data);
+});
+
+socket.on('message.update', (payload) => {
+  const { data } = payload;
+  updateMessageInUI(data);
 });
 
 socket.on('user.update', (payload) => {

@@ -6,6 +6,7 @@ import KnowledgeBase from './pages/KnowledgeBase';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import Chat from './components/Chat';
 import Login from './pages/Login';
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/tickets" element={<Tickets />} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/users" element={<Users />} />

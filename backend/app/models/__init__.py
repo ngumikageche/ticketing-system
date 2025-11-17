@@ -7,5 +7,8 @@ requires model classes to be imported so they register their tables on
 from .user import *  # noqa: F401,F403
 from .ticket import *  # noqa: F401,F403
 from .comment import *  # noqa: F401,F403
+from .message import *  # noqa: F401,F403
+from .conversation import *  # noqa: F401,F403
+from .conversation_participant import *  # noqa: F401,F403
 from .attachment import *  # noqa: F401,F403
 from .kb import *  # noqa: F401,F403

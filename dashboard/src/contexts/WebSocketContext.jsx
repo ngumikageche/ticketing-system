@@ -90,6 +90,7 @@ export const WebSocketProvider = ({ children }) => {
       newSocket.emit('join', { room: 'users' });
       newSocket.emit('join', { room: 'kb' });
       newSocket.emit('join', { room: 'attachments' });
+      newSocket.emit('join', { room: 'messages' });
     });
 
     newSocket.on('disconnect', () => {
@@ -222,6 +223,30 @@ export const WebSocketProvider = ({ children }) => {
         ...prev,
         attachment: {
           ...prev.attachment,
+          [data.id]: data
+        }
+      }));
+    });
+
+    newSocket.on('message.created', (payload) => {
+      const { data } = payload;
+      console.log('Message created:', data);
+      setRealtimeData(prev => ({
+        ...prev,
+        message: {
+          ...prev.message,
+          [data.id]: data
+        }
+      }));
+    });
+
+    newSocket.on('conversation.updated', (payload) => {
+      const { data } = payload;
+      console.log('Conversation updated:', data);
+      setRealtimeData(prev => ({
+        ...prev,
+        conversation: {
+          ...prev.conversation,
           [data.id]: data
         }
       }));

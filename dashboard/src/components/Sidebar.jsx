@@ -1,9 +1,10 @@
-import { Home, Ticket, BookOpen, BarChart3, Users, Settings as SettingsIcon } from 'lucide-react';
+import { Home, Ticket, MessageCircle, BookOpen, BarChart3, Users, Settings as SettingsIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const menu = [
   { label: 'Dashboard', icon: Home, path: '/' },
   { label: 'Tickets', icon: Ticket, path: '/tickets' },
+  { label: 'Chat', icon: MessageCircle, path: '/chat' },
   { label: 'Knowledge Base', icon: BookOpen, path: '/knowledge-base' },
   { label: 'Reports', icon: BarChart3, path: '/reports' },
   { label: 'Users', icon: Users, path: '/users' },

@@ -13,3 +13,10 @@ class Comment(BaseModel):
     ticket = db.relationship('Ticket', back_populates='comments')
     author = db.relationship('User', back_populates='comments')
     parent_comment = db.relationship('Comment', remote_side='Comment.id', backref='replies')  # Self-referential for threading
+
+    def to_dict(self, exclude=None, include=None):
+        data = super().to_dict(exclude, include)
+        # Map parent_comment_id to parent_message_id for frontend compatibility
+        if 'parent_comment_id' in data:
+            data['parent_message_id'] = data.pop('parent_comment_id')
+        return data

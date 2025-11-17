@@ -92,6 +92,18 @@ def send_attachment_deleted(attachment):
     send('attachment.deleted', attachment)
 
 
+def send_message_created(message):
+    send('message.created', message)
+
+
+def send_message_deleted(message):
+    send('message.deleted', message)
+
+
+def send_conversation_created(conversation):
+    send('conversation.created', conversation)
+
+
 # Default handlers: create notifications when comments change. These are
 # registered at import time but can be overridden by calling `register`.
 def _default_comment_created_handler(comment):
@@ -224,6 +236,8 @@ def send_webhook_notification(notification, data=None):
                 socketio.emit('ticket.update', payload)
             elif notification.related_type == 'comment':
                 socketio.emit('comment.update', payload)
+            elif notification.related_type == 'message':
+                socketio.emit('message.update', payload)
             elif notification.related_type == 'user':
                 socketio.emit('user.update', payload)
             elif notification.related_type == 'kb_article':
@@ -429,6 +443,29 @@ def _default_comment_deleted_handler(comment):
 
 def _default_ticket_created_handler(ticket):
     from app.models.notification import Notification
+    from app.models.conversation import Conversation
+    from app.models.conversation_participant import ConversationParticipant
+
+    # Create a conversation for the ticket
+    conv = Conversation(
+        type='ticket',
+        title=f"Ticket #{ticket.ticket_id}: {ticket.subject}",
+        ticket_id=ticket.id,
+        created_by_id=ticket.requester_id or ticket.assignee_id  # Use requester or assignee as creator
+    )
+    conv.save()
+
+    # Add participants: requester and assignee
+    if ticket.requester_id:
+        p = ConversationParticipant(conversation_id=conv.id, user_id=ticket.requester_id)
+        p.save()
+    if ticket.assignee_id:
+        p = ConversationParticipant(conversation_id=conv.id, user_id=ticket.assignee_id)
+        p.save()
+
+    # Update ticket to link conversation
+    ticket.conversation = conv
+    ticket.save()
 
     # Notify all admins about new ticket
     from app.models.user import User
@@ -698,6 +735,59 @@ def _default_attachment_deleted_handler(attachment):
         _send_webhook_for_notification(notification)
 
 
+def _default_message_created_handler(message):
+    from app.models.notification import Notification
+
+    conversation = getattr(message, 'conversation', None)
+    sender = getattr(message, 'sender', None)
+    sender_label = (sender.name or sender.email) if sender is not None else 'Someone'
+
+    if conversation is None:
+        return
+
+    message_data = message.to_dict()  # Include full message data for UI updates
+
+    # Notify all participants except sender
+    participants = conversation.participants
+    for p in participants:
+        if str(p.user_id) != str(message.sender_id):
+            notification = Notification(
+                user_id=p.user_id,
+                type='message_on_conversation',
+                message=f'New message in "{conversation.title or "conversation"}" by {sender_label}',
+                related_id=message.id,
+                related_type='message'
+            )
+            notification.save()
+            _send_webhook_for_notification(notification, message_data)
+
+
+def _default_message_deleted_handler(message):
+    from app.models.notification import Notification
+
+    conversation = getattr(message, 'conversation', None)
+    if conversation is None:
+        return
+
+    # Notify all participants
+    participants = conversation.participants
+    for p in participants:
+        notification = Notification(
+            user_id=p.user_id,
+            type='message_deleted',
+            message=f'A message was deleted from "{conversation.title or "conversation"}"',
+            related_id=message.id,
+            related_type='message'
+        )
+        notification.save()
+        _send_webhook_for_notification(notification)
+
+
+def _default_conversation_created_handler(conversation):
+    # For now, no notifications on conversation creation
+    pass
+
+
 # Register defaults
 register('comment.created', _default_comment_created_handler)
 register('comment.updated', _default_comment_updated_handler)
@@ -714,3 +804,6 @@ register('kb_article.deleted', _default_kb_article_deleted_handler)
 register('attachment.created', _default_attachment_created_handler)
 register('attachment.updated', _default_attachment_updated_handler)
 register('attachment.deleted', _default_attachment_deleted_handler)
+register('message.created', _default_message_created_handler)
+register('message.deleted', _default_message_deleted_handler)
+register('conversation.created', _default_conversation_created_handler)

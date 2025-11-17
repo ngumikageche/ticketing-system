@@ -3,7 +3,17 @@ info:
   title: Support Ticketing System API
   version: 1.0.0
   description: |
-    Comprehensive API for a support ticketing system with users, tickets, comments, attachments, knowledge base, notifications, and reporting.
+    Comprehensive API for a support ticketing system with users, tickets, comments, attachments, knowledge base, notifications, and real-time messaging with threaded conversations.
+
+    ## Key Features
+
+    - **Multi-channel Messaging**: Support for direct messages, group conversations, and ticket-based discussions
+    - **Threaded Replies**: Full support for nested message replies in both conversations and ticket comments
+    - **Real-time Notifications**: Dual-channel notifications via webhooks and WebSocket/Socket.IO
+    - **Comprehensive Ticketing**: Full lifecycle management of support tickets with status tracking
+    - **Knowledge Base**: Article management with tagging and search capabilities
+    - **File Attachments**: Support for attaching files to tickets and messages
+    - **User Management**: Role-based access control and user administration
 
     ## Real-time Notifications & Webhooks
 
@@ -23,12 +33,16 @@ info:
     - `notification` - All notifications (with full payload)
     - `ticket.update` - Ticket-related updates
     - `comment.update` - Comment-related updates  
+    - `message.update` - Message-related updates
+    - `conversation.update` - Conversation-related updates
     - `user.update` - User-related updates
     - `kb.update` - Knowledge base updates
     - `attachment.update` - Attachment updates
 
     ### Supported Events
     - **Comments**: Created, updated, deleted
+    - **Messages**: Created, deleted
+    - **Conversations**: Created
     - **Tickets**: Created, updated, deleted
     - **Users**: Created, deactivated
     - **Knowledge Base**: Articles created
@@ -258,6 +272,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Ticket'
+
   /api/tickets/{id_}:
     parameters:
       - $ref: '#/components/parameters/id'
@@ -266,12 +281,12 @@ paths:
       summary: Get ticket details
       responses:
         '200':
-          description: Ticket details
+          description: A ticket
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Ticket'
-    patch:
+    put:
       tags: [tickets]
       summary: Update ticket
       requestBody:
@@ -292,6 +307,45 @@ paths:
       responses:
         '204':
           description: Deleted
+
+  /api/tickets/{ticket_id}/messages:
+    parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Ticket ID
+    get:
+      tags: [tickets]
+      summary: Get messages for a ticket
+      description: Retrieve all messages (comments) for a specific ticket, supporting threaded replies
+      responses:
+        '200':
+          description: List of ticket messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+    post:
+      tags: [tickets]
+      summary: Send message to ticket
+      description: Create a new message on a ticket, optionally as a reply to another message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewComment'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
 
   /api/comments/:
     get:
@@ -685,19 +739,112 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/AgentPerformance'
-  /api/dashboard/reports/ticket-trends:
+  /api/conversations/:
     get:
-      summary: Daily ticket creation vs resolution trends
-      tags: [dashboard]
+      tags: [conversations]
+      summary: List conversations
       responses:
         '200':
-          description: Trend data for the last 30 days
+          description: List of conversations
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/TicketTrend'
+                  $ref: '#/components/schemas/Conversation'
+    post:
+      tags: [conversations]
+      summary: Create a conversation
+      description: |
+        Create a new conversation. Requirements vary by type:
+        - **direct**: Requires recipient_id (creates DM between creator and recipient)
+        - **group**: Requires participants array and optional title
+        - **ticket**: Requires ticket_id (auto-creates conversation for ticket participants)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewConversation'
+      responses:
+        '201':
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+
+  /api/conversations/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [conversations]
+      summary: Get conversation details
+      description: Get details of a specific conversation. Direct conversations are only accessible to participants.
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '403':
+          description: Not authorized to access this direct conversation
+  /api/conversations/{id_}/messages:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [conversations]
+      summary: Get messages in conversation
+      description: Retrieve all messages in a conversation, supporting threaded replies
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+    post:
+      tags: [conversations]
+      summary: Send message to conversation
+      description: Create a new message in a conversation, optionally as a reply to another message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewMessage'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+  /api/conversations/{id_}/participants:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [conversations]
+      summary: Add participant to conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: { type: string }
+      responses:
+        '201':
+          description: Participant added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationParticipant'
 
 components:
   securitySchemes:
@@ -799,7 +946,7 @@ components:
         content: { type: string }
         ticket_id: { type: string }
         author_id: { type: string }
-        parent_comment_id: { type: string, nullable: true }
+        parent_message_id: { type: string, nullable: true, description: "ID of parent message for threaded replies" }
     NewComment:
       type: object
       required: [content, ticket_id, author_id]
@@ -807,11 +954,61 @@ components:
         content: { type: string }
         ticket_id: { type: string }
         author_id: { type: string }
-        parent_comment_id: { type: string }
+        parent_message_id: { type: string, description: "ID of parent message for threaded replies" }
     CommentUpdate:
       type: object
       properties:
         content: { type: string }
+
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        conversation_id: { type: string }
+        sender_id: { type: string }
+        content: { type: string }
+        message_type: { type: string, enum: [text, file, system], default: text }
+        parent_message_id: { type: string, nullable: true, description: "ID of parent message for threaded replies" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NewMessage:
+      type: object
+      required: [content, sender_id]
+      properties:
+        content: { type: string }
+        sender_id: { type: string }
+        message_type: { type: string, enum: [text, file, system], default: text }
+        parent_message_id: { type: string, description: "ID of parent message for threaded replies" }
+
+    Conversation:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [ticket, direct, group] }
+        title: { type: string }
+        ticket_id: { type: string }
+        created_by_id: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NewConversation:
+      type: object
+      required: [type, created_by_id]
+      properties:
+        type: { type: string, enum: [ticket, direct, group] }
+        title: { type: string }
+        ticket_id: { type: string }
+        created_by_id: { type: string }
+        recipient_id: { type: string, description: "Required for direct conversations" }
+        participants: { type: array, items: { type: string }, description: "Required for group conversations" }
+
+    ConversationParticipant:
+      type: object
+      properties:
+        id: { type: string }
+        conversation_id: { type: string }
+        user_id: { type: string }
+        role: { type: string, enum: [admin, member], default: member }
+        created_at: { type: string, format: date-time }
 
     Notification:
       type: object
@@ -825,6 +1022,7 @@ components:
             ticket_updated, ticket_deleted, comment_updated, comment_deleted,
             user_created, user_deactivated, ticket_assigned, kb_article_created,
             attachment_added, attachment_updated, attachment_deleted,
+            message_on_ticket, message_deleted, message_on_conversation,
             webhook_test
           ]
         message: { type: string }
@@ -832,7 +1030,7 @@ components:
         related_type: 
           type: string
           nullable: true
-          enum: [comment, ticket, user, kb_article, attachment]
+          enum: [comment, ticket, user, kb_article, attachment, message]
         is_read: { type: boolean }
         created_at: { type: string, format: date-time }
 
@@ -981,6 +1179,7 @@ components:
                 ticket_updated, ticket_deleted, comment_updated, comment_deleted,
                 user_created, user_deactivated, ticket_assigned, kb_article_created,
                 attachment_added, attachment_updated, attachment_deleted,
+                message_on_ticket, message_deleted, message_on_conversation,
                 webhook_test
               ]
             message:
@@ -991,7 +1190,7 @@ components:
             related_type:
               type: string
               nullable: true
-              enum: [comment, ticket, user, kb_article, attachment]
+              enum: [comment, ticket, user, kb_article, attachment, message]
             created_at:
               type: string
               format: date-time
@@ -1005,6 +1204,8 @@ tags:
     description: Ticket management endpoints
   - name: comments
     description: Comment and discussion endpoints
+  - name: conversations
+    description: Chat conversation endpoints
   - name: attachments
     description: File attachment endpoints
   - name: kb

@@ -20,6 +20,7 @@ class Ticket(BaseModel):
     assignee = db.relationship('User', foreign_keys=[assignee_id], back_populates='assigned_tickets')
     comments = db.relationship('Comment', back_populates='ticket', cascade='all, delete-orphan')
     attachments = db.relationship('Attachment', back_populates='ticket', cascade='all, delete-orphan')
+    conversation = db.relationship('Conversation', back_populates='ticket', uselist=False)
 
     __table_args__ = (
         db.Index('ix_tickets_status', 'status'),
