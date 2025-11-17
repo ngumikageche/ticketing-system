@@ -10,6 +10,7 @@ class User(BaseModel):
     name = db.Column(db.String(100))
     password_hash = db.Column(db.String(255))
     role = db.Column(db.String(20), default='CUSTOMER')
+    webhook_url = db.Column(db.String(500))  # Optional webhook URL for real-time notifications
     is_active = db.Column(db.Boolean, default=True)
 
     # Relationships
@@ -17,6 +18,7 @@ class User(BaseModel):
     assigned_tickets = db.relationship('Ticket', foreign_keys='Ticket.assignee_id', back_populates='assignee')
     comments = db.relationship('Comment', back_populates='author')
     articles = db.relationship('KnowledgeBaseArticle', back_populates='author')
+    notifications = db.relationship('Notification', back_populates='user')
 
     def set_password(self, password):
         self.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()

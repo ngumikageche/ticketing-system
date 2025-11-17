@@ -8,6 +8,8 @@ class Comment(BaseModel):
     content = db.Column(db.Text, nullable=False)
     ticket_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('tickets.id'), nullable=False)
     author_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
+    parent_comment_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('comments.id'), nullable=True)  # For replies
 
     ticket = db.relationship('Ticket', back_populates='comments')
     author = db.relationship('User', back_populates='comments')
+    parent_comment = db.relationship('Comment', remote_side='Comment.id', backref='replies')  # Self-referential for threading

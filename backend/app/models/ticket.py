@@ -10,7 +10,9 @@ class Ticket(BaseModel):
     description = db.Column(db.Text)
     status = db.Column(db.String(20), default='OPEN')
     priority = db.Column(db.String(20), default='MEDIUM')
-    requester_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
+    status_changed_at = db.Column(db.DateTime(timezone=True), nullable=True)  # Track when status last changed
+    requester_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=True)  # Optional for external requesters
+    requester_name = db.Column(db.String(200), nullable=True)  # For external requesters (e.g., company name or phone contact)
     assignee_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('users.id'))
 
     # Relationships

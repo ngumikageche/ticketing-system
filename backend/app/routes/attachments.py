@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify, abort
 from app.models.attachment import Attachment
 from app.models.ticket import Ticket
 from app.models.user import User
+from app.models.notification import Notification
+from app.hooks import send_attachment_created, send_attachment_updated, send_attachment_deleted
 from app.models.base import db
 
 attachments_bp = Blueprint('attachments', __name__)
@@ -41,6 +43,16 @@ def create_attachment():
         uploaded_by=data['uploaded_by'],
     )
     a.save()
+    
+    # emit hook for attachment created so handlers (including defaults) can
+    # create notifications or perform other side-effects
+    try:
+        send_attachment_created(a)
+    except Exception:
+        import logging
+
+        logging.exception('error running attachment.created hooks')
+    
     return jsonify(a.to_dict()), 201
 
 
@@ -58,17 +70,33 @@ def update_attachment(id_):
         if field in data:
             setattr(a, field, data[field])
     a.save()
+    
+    # emit hook for attachment updated so handlers (including defaults) can
+    # create notifications or perform other side-effects
+    try:
+        send_attachment_updated(a)
+    except Exception:
+        import logging
+
+        logging.exception('error running attachment.updated hooks')
+    
     return jsonify(a.to_dict())
 
 
 @attachments_bp.route('/<id_>', methods=['DELETE'])
 def delete_attachment(id_):
-    hard = request.args.get('hard', 'false').lower() in ('1', 'true', 'yes')
     a = _get_or_404(Attachment, id_)
-    if hard:
-        db.session.delete(a)
-        db.session.commit()
-        return '', 204
-    else:
-        a.delete(soft=True)
-        return '', 204
+    ticket = a.ticket
+    
+    a.delete(soft=True)
+    
+    # emit hook for attachment deleted so handlers (including defaults) can
+    # create notifications or perform other side-effects
+    try:
+        send_attachment_deleted(a)
+    except Exception:
+        import logging
+
+        logging.exception('error running attachment.deleted hooks')
+
+    return '', 204

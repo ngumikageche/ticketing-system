@@ -2,7 +2,71 @@ openapi: 3.0.3
 info:
   title: Support Ticketing System API
   version: 1.0.0
-  description: Simple API for a support ticketing system (users, tickets, comments, attachments, KB).
+  description: |
+    Comprehensive API for a support ticketing system with users, tickets, comments, attachments, knowledge base, notifications, and reporting.
+
+    ## Real-time Notifications & Webhooks
+
+    The API supports comprehensive real-time notifications through **dual channels**:
+
+    ### Webhooks (HTTP-based)
+    - External integrations and reliable delivery
+    - Configurable per user with retry logic
+    - Includes full entity data for UI updates
+
+    ### WebSockets/Socket.IO (Real-time)
+    - Instant bidirectional communication
+    - Room-based messaging for targeted updates
+    - Automatic UI synchronization without polling
+
+    **Socket.IO Events:**
+    - `notification` - All notifications (with full payload)
+    - `ticket.update` - Ticket-related updates
+    - `comment.update` - Comment-related updates  
+    - `user.update` - User-related updates
+    - `kb.update` - Knowledge base updates
+    - `attachment.update` - Attachment updates
+
+    ### Supported Events
+    - **Comments**: Created, updated, deleted
+    - **Tickets**: Created, updated, deleted
+    - **Users**: Created, deactivated
+    - **Knowledge Base**: Articles created
+    - **Attachments**: Added, updated, deleted
+
+    ### Setting up Webhooks
+
+    1. **Configure Webhook URL**: Users can set a webhook URL via `PUT /api/users/me/webhook`
+    2. **Receive Notifications**: When relevant events occur, HTTP POST requests are sent to the configured URL
+    3. **Internal Webhooks**: For same-app integrations, use relative URLs like `/api/notifications/webhooks/notifications`
+
+    ### Webhook Payload
+
+    ```json
+    {
+      "event": "notification.created",
+      "notification": {
+        "id": "uuid",
+        "type": "comment_on_ticket",
+        "message": "New comment on your ticket 'Subject' by Author",
+        "related_id": "entity-uuid",
+        "related_type": "comment|ticket|user|kb_article|attachment",
+        "created_at": "2025-11-17T12:00:00Z"
+      },
+      "data": {
+        // Optional: Full entity data for real-time UI updates
+        // Allows frontend to update specific items without refetching lists
+        "id": "entity-uuid",
+        "field1": "value1",
+        "field2": "value2"
+        // ... complete entity fields
+      }
+    }
+    ```
+
+    ### Testing Webhooks
+
+    Use `POST /api/notifications/webhooks/test` to send a test webhook to your configured URL.
 servers:
   - url: http://localhost:5000
 paths:
@@ -33,6 +97,23 @@ paths:
                 properties:
                   access_token:
                     type: string
+  /api/auth/me:
+    get:
+      summary: Get current user details
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid or missing token
+        '404':
+          description: User not found
   /api/users/:
     get:
       summary: List all users
@@ -47,8 +128,10 @@ paths:
                 items:
                   $ref: '#/components/schemas/User'
     post:
-      summary: Create a user
+      summary: Create a user (admin only)
       tags: [users]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -56,8 +139,14 @@ paths:
             schema:
               $ref: '#/components/schemas/NewUser'
       responses:
+        '200':
+          description: Existing soft-deleted user was reactivated and updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
         '201':
-          description: Created
+          description: New user created
           content:
             application/json:
               schema:
@@ -89,10 +178,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
     delete:
+      summary: Disable user (soft delete)
       tags: [users]
+      security:
+        - bearerAuth: []
       responses:
         '204':
-          description: Deleted
+          description: Disabled
+
+  /api/users/me/webhook:
+    get:
+      summary: Get current user's webhook URL
+      tags: [users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current webhook URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhook_url:
+                    type: string
+                    nullable: true
+    put:
+      summary: Update current user's webhook URL
+      tags: [users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                webhook_url:
+                  type: string
+                  description: Webhook URL for real-time notifications. Can be an external URL or internal path starting with /
+      responses:
+        '200':
+          description: Updated webhook URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhook_url:
+                    type: string
+                    nullable: true
 
   /api/tickets/:
     get:
@@ -109,6 +244,7 @@ paths:
                   $ref: '#/components/schemas/Ticket'
     post:
       tags: [tickets]
+      summary: Create a new ticket
       requestBody:
         required: true
         content:
@@ -127,6 +263,7 @@ paths:
       - $ref: '#/components/parameters/id'
     get:
       tags: [tickets]
+      summary: Get ticket details
       responses:
         '200':
           description: Ticket details
@@ -136,6 +273,7 @@ paths:
                 $ref: '#/components/schemas/Ticket'
     patch:
       tags: [tickets]
+      summary: Update ticket
       requestBody:
         content:
           application/json:
@@ -150,6 +288,7 @@ paths:
                 $ref: '#/components/schemas/Ticket'
     delete:
       tags: [tickets]
+      summary: Delete ticket (soft delete)
       responses:
         '204':
           description: Deleted
@@ -157,6 +296,7 @@ paths:
   /api/comments/:
     get:
       tags: [comments]
+      summary: List all comments
       responses:
         '200':
           description: List of comments
@@ -168,6 +308,9 @@ paths:
                   $ref: '#/components/schemas/Comment'
     post:
       tags: [comments]
+      summary: Create a new comment
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -186,6 +329,7 @@ paths:
       - $ref: '#/components/parameters/id'
     get:
       tags: [comments]
+      summary: Get comment details
       responses:
         '200':
           description: A comment
@@ -195,6 +339,9 @@ paths:
                 $ref: '#/components/schemas/Comment'
     patch:
       tags: [comments]
+      summary: Update comment
+      security:
+        - bearerAuth: []
       requestBody:
         content:
           application/json:
@@ -209,18 +356,107 @@ paths:
                 $ref: '#/components/schemas/Comment'
     delete:
       tags: [comments]
+      summary: Delete comment (soft delete)
+      security:
+        - bearerAuth: []
       responses:
         '204':
           description: Deleted
 
+  /api/notifications/:
+    get:
+      tags: [notifications]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of notifications for the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+  /api/notifications/{id_}/read:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [notifications]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+
+  /api/notifications/webhooks/notifications:
+    post:
+      summary: Receive webhook notifications
+      tags: [webhooks]
+      description: |
+        Endpoint for receiving webhook notifications. This can be used as a target
+        for user-configured webhook URLs to receive real-time notification updates.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookPayload'
+      responses:
+        '200':
+          description: Webhook received successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: received
+
+  /api/notifications/webhooks/test:
+    post:
+      summary: Test webhook configuration
+      tags: [webhooks]
+      security:
+        - bearerAuth: []
+      description: Send a test webhook to the current user's configured webhook URL
+      responses:
+        '200':
+          description: Test webhook sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: test webhook sent
+        '400':
+          description: No webhook URL configured
+        '500':
+          description: Failed to send test webhook
+
   /api/attachments/:
     get:
       tags: [attachments]
+      summary: List all attachments
       responses:
         '200':
           description: List of attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attachment'
     post:
       tags: [attachments]
+      summary: Create a new attachment
+      security:
+        - bearerAuth: []
       requestBody:
         content:
           application/json:
@@ -229,16 +465,45 @@ paths:
       responses:
         '201':
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
   /api/attachments/{id_}:
     parameters:
       - $ref: '#/components/parameters/id'
     get:
       tags: [attachments]
+      summary: Get attachment details
       responses:
         '200':
           description: An attachment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
+    put:
+      tags: [attachments]
+      summary: Update attachment
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachmentUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
     delete:
       tags: [attachments]
+      summary: Delete attachment (soft delete)
+      security:
+        - bearerAuth: []
       responses:
         '204':
           description: Deleted
@@ -246,11 +511,21 @@ paths:
   /api/kb/articles:
     get:
       tags: [kb]
+      summary: List knowledge base articles
       responses:
         '200':
           description: List of articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KnowledgeBaseArticle'
     post:
       tags: [kb]
+      summary: Create a new KB article
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -260,16 +535,28 @@ paths:
       responses:
         '201':
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeBaseArticle'
   /api/kb/articles/{id_}:
     parameters:
       - $ref: '#/components/parameters/id'
     get:
       tags: [kb]
+      summary: Get KB article details
       responses:
         '200':
           description: An article
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeBaseArticle'
     patch:
       tags: [kb]
+      summary: Update KB article
+      security:
+        - bearerAuth: []
       requestBody:
         content:
           application/json:
@@ -278,8 +565,15 @@ paths:
       responses:
         '200':
           description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeBaseArticle'
     delete:
       tags: [kb]
+      summary: Delete KB article (soft delete)
+      security:
+        - bearerAuth: []
       responses:
         '204':
           description: Deleted
@@ -287,11 +581,21 @@ paths:
   /api/kb/tags:
     get:
       tags: [kb]
+      summary: List all tags
       responses:
         '200':
           description: List of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
     post:
       tags: [kb]
+      summary: Create a new tag
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -301,16 +605,28 @@ paths:
       responses:
         '201':
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
   /api/kb/tags/{id_}:
     parameters:
       - $ref: '#/components/parameters/id'
     get:
       tags: [kb]
+      summary: Get tag details
       responses:
         '200':
           description: A tag
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
     patch:
       tags: [kb]
+      summary: Update tag
+      security:
+        - bearerAuth: []
       requestBody:
         content:
           application/json:
@@ -319,20 +635,77 @@ paths:
       responses:
         '200':
           description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
     delete:
       tags: [kb]
+      summary: Delete tag (soft delete)
+      security:
+        - bearerAuth: []
       responses:
         '204':
           description: Deleted
 
   /api/dashboard/:
     get:
+      summary: Get dashboard overview with key metrics and charts
       tags: [dashboard]
       responses:
         '200':
-          description: Dashboard overview
+          description: Dashboard data including totals, breakdowns, and trends
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+  /api/dashboard/reports/tickets-by-status:
+    get:
+      summary: Detailed ticket status breakdown with resolution rates
+      tags: [dashboard]
+      responses:
+        '200':
+          description: Status breakdown data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StatusBreakdown'
+  /api/dashboard/reports/agent-performance:
+    get:
+      summary: Agent performance metrics
+      tags: [dashboard]
+      responses:
+        '200':
+          description: Agent performance data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AgentPerformance'
+  /api/dashboard/reports/ticket-trends:
+    get:
+      summary: Daily ticket creation vs resolution trends
+      tags: [dashboard]
+      responses:
+        '200':
+          description: Trend data for the last 30 days
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TicketTrend'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   parameters:
     id:
       name: id_
@@ -354,6 +727,10 @@ components:
           type: string
         role:
           type: string
+        webhook_url:
+          type: string
+          nullable: true
+          description: URL for receiving real-time webhook notifications
         is_active:
           type: boolean
     NewUser:
@@ -385,11 +762,15 @@ components:
         description: { type: string }
         status: { type: string }
         priority: { type: string }
-        requester_id: { type: string }
-        assignee_id: { type: string }
+        status_changed_at: { type: string, format: date-time, nullable: true }
+        requester_id: { type: string, nullable: true }
+        requester_name: { type: string, nullable: true }
+        assignee_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
     NewTicket:
       type: object
-      required: [subject, requester_id]
+      required: [subject]
       properties:
         ticket_id: { type: string }
         subject: { type: string }
@@ -397,7 +778,11 @@ components:
         status: { type: string }
         priority: { type: string }
         requester_id: { type: string }
+        requester_name: { type: string }
         assignee_id: { type: string }
+      oneOf:
+        - required: [requester_id]
+        - required: [requester_name]
     TicketUpdate:
       type: object
       properties:
@@ -414,6 +799,7 @@ components:
         content: { type: string }
         ticket_id: { type: string }
         author_id: { type: string }
+        parent_comment_id: { type: string, nullable: true }
     NewComment:
       type: object
       required: [content, ticket_id, author_id]
@@ -421,10 +807,34 @@ components:
         content: { type: string }
         ticket_id: { type: string }
         author_id: { type: string }
+        parent_comment_id: { type: string }
     CommentUpdate:
       type: object
       properties:
         content: { type: string }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string }
+        user_id: { type: string }
+        type: 
+          type: string
+          enum: [
+            comment_on_ticket, reply_to_comment, new_ticket, 
+            ticket_updated, ticket_deleted, comment_updated, comment_deleted,
+            user_created, user_deactivated, kb_article_created,
+            attachment_added, attachment_updated, attachment_deleted,
+            webhook_test
+          ]
+        message: { type: string }
+        related_id: { type: string, nullable: true }
+        related_type: 
+          type: string
+          nullable: true
+          enum: [comment, ticket, user, kb_article, attachment]
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
 
     Attachment:
       type: object
@@ -445,6 +855,13 @@ components:
         size: { type: integer }
         ticket_id: { type: string }
         uploaded_by: { type: string }
+    AttachmentUpdate:
+      type: object
+      properties:
+        filename: { type: string }
+        url: { type: string }
+        type: { type: string }
+        size: { type: integer }
 
     KnowledgeBaseArticle:
       type: object
@@ -490,12 +907,111 @@ components:
         name: { type: string }
         color: { type: string }
 
+    Dashboard:
+      type: object
+      properties:
+        totalTickets: { type: integer }
+        resolvedTickets: { type: integer }
+        avgResponse: { type: string }
+        statusBreakdown:
+          type: object
+          additionalProperties:
+            type: integer
+        priorityBreakdown:
+          type: object
+          additionalProperties:
+            type: integer
+        monthlyData:
+          type: array
+          items:
+            type: object
+            properties:
+              month: { type: string }
+              tickets: { type: integer }
+        recentActivity:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              ticket_id: { type: string }
+              subject: { type: string }
+              status: { type: string }
+              updated_at: { type: string, format: date-time }
+
+    StatusBreakdown:
+      type: object
+      properties:
+        status: { type: string }
+        count: { type: integer }
+        resolutionRate: { type: number }
+
+    AgentPerformance:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        assignedTickets: { type: integer }
+        resolvedTickets: { type: integer }
+        resolutionRate: { type: number }
+
+    TicketTrend:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        created: { type: integer }
+        resolved: { type: integer }
+
+    WebhookPayload:
+      type: object
+      required: [event, notification]
+      properties:
+        event:
+          type: string
+          example: notification.created
+        notification:
+          type: object
+          properties:
+            id:
+              type: string
+            type:
+              type: string
+              enum: [
+                comment_on_ticket, reply_to_comment, new_ticket,
+                ticket_updated, ticket_deleted, comment_updated, comment_deleted,
+                user_created, user_deactivated, kb_article_created,
+                attachment_added, attachment_updated, attachment_deleted,
+                webhook_test
+              ]
+            message:
+              type: string
+            related_id:
+              type: string
+              nullable: true
+            related_type:
+              type: string
+              nullable: true
+              enum: [comment, ticket, user, kb_article, attachment]
+            created_at:
+              type: string
+              format: date-time
+
 tags:
   - name: auth
     description: Authentication endpoints
   - name: users
+    description: User management endpoints
   - name: tickets
+    description: Ticket management endpoints
   - name: comments
+    description: Comment and discussion endpoints
   - name: attachments
+    description: File attachment endpoints
   - name: kb
+    description: Knowledge base and article endpoints
+  - name: notifications
+    description: User notification endpoints
+  - name: webhooks
+    description: Webhook configuration and receiver endpoints
   - name: dashboard
+    description: Reporting and analytics endpoints

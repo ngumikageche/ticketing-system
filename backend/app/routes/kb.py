@@ -1,7 +1,11 @@
 from flask import Blueprint, request, jsonify, abort
 from app.models.kb import KnowledgeBaseArticle, Tag
 from app.models.user import User
+from app.models.notification import Notification
+from app.hooks import send_kb_article_created, send_kb_article_updated, send_kb_article_deleted
 from app.models.base import db
+from flask_jwt_extended import jwt_required, get_jwt_identity
+import uuid
 
 kb_bp = Blueprint('kb', __name__)
 
@@ -22,16 +26,25 @@ def list_articles():
 
 
 @kb_bp.route('/articles', methods=['POST'])
+@jwt_required()
 def create_article():
+    identity = get_jwt_identity()
+    try:
+        author_id = uuid.UUID(identity)
+    except ValueError:
+        abort(401, 'invalid token')
+    author = User.active().filter_by(id=author_id).first()
+    if not author:
+        abort(401, 'user not found or disabled')
+    
     data = request.get_json() or {}
-    if not data.get('title') or not data.get('content') or not data.get('author_id'):
-        abort(400, 'title, content and author_id are required')
-    if not User.query.filter_by(id=data['author_id']).first():
-        abort(400, 'author not found')
+    if not data.get('title') or not data.get('content'):
+        abort(400, 'title and content are required')
+    
     a = KnowledgeBaseArticle(
         title=data['title'],
         content=data['content'],
-        author_id=data['author_id'],
+        author_id=author_id,
         is_public=data.get('is_public', True),
     )
     # handle tags by name (create if not exist)
@@ -45,6 +58,16 @@ def create_article():
         tags.append(tag)
     a.tags = tags
     a.save()
+    
+    # emit hook for kb article created so handlers (including defaults) can
+    # create notifications or perform other side-effects
+    try:
+        send_kb_article_created(a)
+    except Exception:
+        import logging
+
+        logging.exception('error running kb_article.created hooks')
+    
     return jsonify(a.to_dict()), 201
 
 
@@ -55,8 +78,19 @@ def get_article(id_):
 
 
 @kb_bp.route('/articles/<id_>', methods=['PUT', 'PATCH'])
+@jwt_required()
 def update_article(id_):
+    identity = get_jwt_identity()
+    try:
+        user_id = uuid.UUID(identity)
+    except ValueError:
+        abort(401, 'invalid token')
+    user = User.active().filter_by(id=user_id).first()
+    if not user:
+        abort(401, 'user not found or disabled')
+    
     a = _get_or_404(KnowledgeBaseArticle, id_)
+    # TODO: check if user is author or admin
     data = request.get_json() or {}
     for f in ('title', 'content', 'is_public'):
         if f in data:
@@ -72,20 +106,45 @@ def update_article(id_):
             tags.append(tag)
         a.tags = tags
     a.save()
+    
+    # emit hook for kb article updated so handlers (including defaults) can
+    # create notifications or perform other side-effects
+    try:
+        send_kb_article_updated(a)
+    except Exception:
+        import logging
+
+        logging.exception('error running kb_article.updated hooks')
+    
     return jsonify(a.to_dict())
 
 
 @kb_bp.route('/articles/<id_>', methods=['DELETE'])
+@jwt_required()
 def delete_article(id_):
-    hard = request.args.get('hard', 'false').lower() in ('1', 'true', 'yes')
+    identity = get_jwt_identity()
+    try:
+        user_id = uuid.UUID(identity)
+    except ValueError:
+        abort(401, 'invalid token')
+    user = User.active().filter_by(id=user_id).first()
+    if not user:
+        abort(401, 'user not found or disabled')
+    
     a = _get_or_404(KnowledgeBaseArticle, id_)
-    if hard:
-        db.session.delete(a)
-        db.session.commit()
-        return '', 204
-    else:
-        a.delete(soft=True)
-        return '', 204
+    # TODO: check if user is author or admin
+    a.delete(soft=True)
+    
+    # emit hook for kb article deleted so handlers (including defaults) can
+    # create notifications or perform other side-effects
+    try:
+        send_kb_article_deleted(a)
+    except Exception:
+        import logging
+
+        logging.exception('error running kb_article.deleted hooks')
+
+    return '', 204
 
 
 @kb_bp.route('/tags', methods=['GET'])
