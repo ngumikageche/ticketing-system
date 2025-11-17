@@ -93,6 +93,32 @@ def create_conversation():
     if not creator:
         abort(400, 'creator not found')
 
+    # For direct conversations, check if one already exists between these users
+    if conv_type == 'direct':
+        recipient_id = data.get('recipient_id')
+        if not recipient_id:
+            abort(400, 'recipient_id required for direct conversations')
+        recipient = User.query.filter_by(id=recipient_id).first()
+        if not recipient:
+            abort(400, 'recipient not found')
+        
+        # Find existing direct conversation between these two users
+        # A direct conversation should have exactly 2 participants
+        existing_direct = db.session.query(Conversation).join(ConversationParticipant).filter(
+            Conversation.type == 'direct',
+            ConversationParticipant.user_id.in_([created_by_id, recipient_id])
+        ).group_by(Conversation.id).having(
+            db.func.count(ConversationParticipant.user_id) == 2
+        ).first()
+        
+        if existing_direct:
+            # Verify both users are participants
+            participants = ConversationParticipant.query.filter_by(conversation_id=existing_direct.id).all()
+            participant_ids = {p.user_id for p in participants}
+            if participant_ids == {created_by_id, recipient_id}:
+                # Return existing conversation
+                return jsonify(existing_direct.to_dict()), 200
+
     conv = Conversation(
         type=conv_type,
         title=data.get('title'),
@@ -104,11 +130,6 @@ def create_conversation():
     # Add participants based on conversation type
     if conv_type == 'direct':
         recipient_id = data.get('recipient_id')
-        if not recipient_id:
-            abort(400, 'recipient_id required for direct conversations')
-        recipient = User.query.filter_by(id=recipient_id).first()
-        if not recipient:
-            abort(400, 'recipient not found')
         
         # Add both creator and recipient as participants (avoid duplicates)
         if not ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=created_by_id).first():

@@ -141,7 +141,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
   if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
 
   return (
-    <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-full">
+    <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col h-full">
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Messages</h2>
@@ -303,6 +303,9 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
         onConversationCreated={(newConversation) => {
           setConversations(prev => [newConversation, ...prev]);
           onSelectConversation(newConversation);
+        }}
+        onExistingConversationFound={(existingConversation) => {
+          onSelectConversation(existingConversation);
         }}
       />
     </div>

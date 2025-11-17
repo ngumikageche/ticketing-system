@@ -57,7 +57,8 @@ export const deleteConversation = async (conversationId) => {
     headers: getAuthHeaders(),
   });
   if (!response.ok) throw new Error('Failed to delete conversation');
-  return response.json();
+  // 204 No Content doesn't have a body, so don't try to parse JSON
+  return;
 };
 
 export const getTicketMessages = async (ticketId) => {

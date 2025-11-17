@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, Search, Users, MessageCircle, Plus } from 'lucide-react';
 import { getUsers, getCurrentUser } from '../api/users.js';
-import { createConversation } from '../api/conversations.js';
+import { createConversation, getConversations, getConversation } from '../api/conversations.js';
 
-const CreateConversationModal = ({ isOpen, onClose, onConversationCreated }) => {
+const CreateConversationModal = ({ isOpen, onClose, onConversationCreated, onExistingConversationFound }) => {
   const [conversationType, setConversationType] = useState('direct');
   const [groupName, setGroupName] = useState('');
   const [selectedUsers, setSelectedUsers] = useState([]);
@@ -39,6 +39,43 @@ const CreateConversationModal = ({ isOpen, onClose, onConversationCreated }) => 
     try {
       setLoading(true);
       setError(null);
+
+      // For direct messages, check if a conversation already exists with this user
+      if (conversationType === 'direct') {
+        const existingConversations = await getConversations();
+        
+        // Check if there's already a direct conversation between current user and selected user
+        let foundExisting = null;
+        for (const conv of existingConversations.filter(c => c.type === 'direct')) {
+          try {
+            const details = await getConversation(conv.id);
+            if (details.participants && details.participants.length === 2) {
+              // Check if both current user and selected user are participants
+              const participantIds = details.participants.map(p => p.user_id);
+              if (participantIds.includes(currentUser.id) && participantIds.includes(selectedUsers[0].id)) {
+                foundExisting = conv;
+                break;
+              }
+            }
+          } catch (err) {
+            console.error('Error checking conversation details:', err);
+          }
+        }
+
+        if (foundExisting) {
+          // If conversation exists, open it instead of creating a new one
+          if (onExistingConversationFound) {
+            onExistingConversationFound(foundExisting);
+            // Reset form
+            setConversationType('direct');
+            setGroupName('');
+            setSelectedUsers([]);
+            setSearchTerm('');
+            onClose();
+            return;
+          }
+        }
+      }
 
       const conversationData = {
         type: conversationType,

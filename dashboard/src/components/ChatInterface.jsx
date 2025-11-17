@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Smile, MessageCircle, Users, Ticket } from 'lucide-react';
+import { Send, Paperclip, Smile, MessageCircle, Users, Ticket, ArrowLeft } from 'lucide-react';
 import { getConversationMessages, sendConversationMessage, getTicketMessages, sendTicketMessage, getConversation } from '../api/conversations.js';
 import { getCurrentUser, getUser } from '../api/users.js';
 import { useWebSocket } from '../contexts/WebSocketContext.jsx';
 
-const ChatInterface = ({ conversation }) => {
+const ChatInterface = ({ conversation, onBack }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -231,6 +231,14 @@ const ChatInterface = ({ conversation }) => {
       {/* Chat Header */}
       <div className="p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="md:hidden p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
           <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
             {conversation.type === 'direct' && <MessageCircle className="w-5 h-5 text-gray-600" />}
             {conversation.type === 'group' && <Users className="w-5 h-5 text-gray-600" />}

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Search, Bell, User, LogOut, X } from 'lucide-react';
+import { Search, Bell, User, LogOut, X, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../api/auth.js';
 import { useWebSocket } from '../contexts/WebSocketContext';
 
-export default function Topbar({ title = 'Dashboard' }) {
+export default function Topbar({ title = 'Dashboard', onMenuClick }) {
   const navigate = useNavigate();
   const { notifications, markNotificationAsRead } = useWebSocket();
   const [showDropdown, setShowDropdown] = useState(false);
@@ -41,11 +41,20 @@ export default function Topbar({ title = 'Dashboard' }) {
   });
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between relative">
-      <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
-
+    <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between relative">
       <div className="flex items-center gap-4">
-        <button className="relative p-2 text-gray-600 hover:text-gray-900">
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+          title="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-800">{title}</h2>
+      </div>
+
+      <div className="flex items-center gap-2 sm:gap-4">
+        <button className="hidden sm:block relative p-2 text-gray-600 hover:text-gray-900">
           <Search className="w-5 h-5" />
         </button>
         <button
@@ -65,11 +74,12 @@ export default function Topbar({ title = 'Dashboard' }) {
           title="Logout"
         >
           <LogOut className="w-5 h-5" />
+          <span className="hidden sm:inline">Logout</span>
         </button>
       </div>
 
       {showDropdown && (
-        <div className="absolute top-full right-6 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+        <div className="absolute top-full right-4 sm:right-6 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           <div className="p-4 border-b">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">Notifications</h3>
