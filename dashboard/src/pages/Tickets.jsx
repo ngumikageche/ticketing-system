@@ -45,7 +45,7 @@ export default function Tickets() {
       }
     };
     fetchData();
-  }, [loadTickets]);
+  }, []);
 
   const fetchTickets = async () => {
     await loadTickets();

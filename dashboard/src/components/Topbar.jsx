@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Search, Bell, User, LogOut, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../api/auth.js';
-import { markNotificationAsRead } from '../api/notifications.js';
 import { useWebSocket } from '../contexts/WebSocketContext';
 
 export default function Topbar({ title = 'Dashboard' }) {
   const navigate = useNavigate();
-  const { notifications, isConnected } = useWebSocket();
+  const { notifications, markNotificationAsRead } = useWebSocket();
   const [showDropdown, setShowDropdown] = useState(false);
 
   const handleLogout = () => {
@@ -16,17 +15,22 @@ export default function Topbar({ title = 'Dashboard' }) {
   };
 
   const handleMarkAsRead = async (id) => {
-    try {
-      await markNotificationAsRead(id);
-      // Note: In a full implementation, the backend would emit an update via WebSocket
-      // For now, we'll just remove it from local state
-      setNotifications(notifications.filter(n => n.id !== id));
-    } catch (error) {
-      console.error('Failed to mark as read:', error);
-    }
+    console.log('Marking notification as read:', id);
+    markNotificationAsRead(id);
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
+  const totalCount = notifications.length;
+
+  // Sort notifications: unread first, then by creation date (newest first)
+  const sortedNotifications = [...notifications].sort((a, b) => {
+    // Unread notifications first
+    if (!a.is_read && b.is_read) return -1;
+    if (a.is_read && !b.is_read) return 1;
+    
+    // Then sort by creation date (newest first)
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
 
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between relative">
@@ -42,10 +46,9 @@ export default function Topbar({ title = 'Dashboard' }) {
         >
           <Bell className="w-5 h-5" />
           {unreadCount > 0 && (
-            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-          )}
-          {!isConnected && (
-            <span className="absolute top-0 right-0 w-2 h-2 bg-yellow-500 rounded-full" title="Disconnected"></span>
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
           )}
         </button>
         <button
@@ -61,14 +64,20 @@ export default function Topbar({ title = 'Dashboard' }) {
         <div className="absolute top-full right-6 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           <div className="p-4 border-b">
             <h3 className="font-semibold">Notifications</h3>
+            <p className="text-sm text-gray-600">
+              {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'} • {notifications.length} total
+            </p>
           </div>
           <div className="max-h-64 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {sortedNotifications.length === 0 ? (
               <p className="p-4 text-gray-500">No notifications</p>
             ) : (
-              notifications.map(notification => (
-                <div key={notification.id} className={`p-4 border-b ${!notification.is_read ? 'bg-blue-50' : ''}`}>
+              sortedNotifications.map(notification => (
+                <div key={notification.id} className="p-4 border-b">
                   <p className="text-sm">{notification.message}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(notification.created_at).toLocaleString()}
+                  </p>
                   {!notification.is_read && (
                     <button
                       onClick={() => handleMarkAsRead(notification.id)}
