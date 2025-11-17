@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { getToken } from '../api/auth.js';
+import { getTickets } from '../api/tickets.js';
+import { getComments } from '../api/comments.js';
 
 /**
  * Custom hook for real-time data updates via WebSocket
@@ -94,46 +96,112 @@ export const useRealtimeData = (eventName, initialData = [], updateCallback) => 
 };
 
 /**
- * Hook for managing notifications with real-time updates
- * @returns {Object} Notification management functions and state
+ * Hook for managing tickets with real-time updates
+ * @returns {Object} Tickets management functions and state
  */
-export const useRealtimeNotifications = () => {
-  const { notifications, markNotificationAsRead } = useWebSocket();
+export const useRealtimeTickets = () => {
+  const { realtimeData } = useWebSocket();
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const markAsRead = async (id) => {
-    const token = getToken();
-    console.log('Marking notification as read:', id, 'with token:', token ? token.substring(0, 20) + '...' : 'NO TOKEN');
-    
-    if (!token) {
-      console.error('No token found for marking notification as read');
-      return;
-    }
-
+  // Load initial tickets
+  const loadTickets = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        // Update the notification state to mark it as read
-        markNotificationAsRead(id);
-        console.log('Marked notification as read:', id);
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to mark notification as read:', response.status, response.statusText, errorText);
-        // Don't update UI if API call failed
-      }
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      setLoading(true);
+      const data = await getTickets();
+      setTickets(data);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Update tickets with real-time data
+  useEffect(() => {
+    if (realtimeData.ticket) {
+      setTickets(prevTickets => {
+        const updated = [...prevTickets];
+        Object.values(realtimeData.ticket).forEach(ticketUpdate => {
+          const existingIndex = updated.findIndex(t => t.id === ticketUpdate.id);
+          if (existingIndex >= 0) {
+            // Update existing ticket
+            updated[existingIndex] = { ...updated[existingIndex], ...ticketUpdate };
+          } else {
+            // Add new ticket
+            updated.unshift(ticketUpdate);
+          }
+        });
+        return updated;
+      });
+    }
+  }, [realtimeData.ticket]);
+
   return {
-    notifications,
-    markAsRead
+    tickets,
+    loading,
+    error,
+    loadTickets,
+    setTickets
+  };
+};
+
+/**
+ * Hook for managing comments with real-time updates
+ * @param {string} ticketId - Optional ticket ID to filter comments
+ * @returns {Object} Comments management functions and state
+ */
+export const useRealtimeComments = (ticketId = null) => {
+  const { realtimeData } = useWebSocket();
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Load comments for a ticket
+  const loadComments = async (id) => {
+    try {
+      setLoading(true);
+      const allComments = await getComments();
+      const ticketComments = allComments.filter(c => c.ticket_id === id);
+      setComments(ticketComments);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update comments with real-time data
+  useEffect(() => {
+    if (realtimeData.comment) {
+      setComments(prevComments => {
+        const updated = [...prevComments];
+        Object.values(realtimeData.comment).forEach(commentUpdate => {
+          // Only update if this comment belongs to our ticket (if ticketId is specified)
+          if (!ticketId || commentUpdate.ticket_id === ticketId) {
+            const existingIndex = updated.findIndex(c => c.id === commentUpdate.id);
+            if (existingIndex >= 0) {
+              // Update existing comment
+              updated[existingIndex] = { ...updated[existingIndex], ...commentUpdate };
+            } else {
+              // Add new comment
+              updated.push(commentUpdate);
+            }
+          }
+        });
+        return updated;
+      });
+    }
+  }, [realtimeData.comment, ticketId]);
+
+  return {
+    comments,
+    loading,
+    error,
+    loadComments,
+    setComments
   };
 };

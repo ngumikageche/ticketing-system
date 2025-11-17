@@ -2,19 +2,13 @@ import { useState, useEffect } from 'react';
 import { Search, Bell, User, LogOut, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../api/auth.js';
+import { markNotificationAsRead } from '../api/notifications.js';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { useRealtimeNotifications } from '../hooks/useRealtime';
 
 export default function Topbar({ title = 'Dashboard' }) {
   const navigate = useNavigate();
-  const { isConnected } = useWebSocket();
-  const { notifications, markAsRead } = useRealtimeNotifications();
+  const { notifications, isConnected } = useWebSocket();
   const [showDropdown, setShowDropdown] = useState(false);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Topbar notifications:', notifications.map(n => ({ id: n.id, message: n.message.substring(0, 50), is_read: n.is_read })));
-  }, [notifications]);
 
   const handleLogout = () => {
     logout();
@@ -22,8 +16,14 @@ export default function Topbar({ title = 'Dashboard' }) {
   };
 
   const handleMarkAsRead = async (id) => {
-    console.log('Marking notification as read:', id);
-    await markAsRead(id);
+    try {
+      await markNotificationAsRead(id);
+      // Note: In a full implementation, the backend would emit an update via WebSocket
+      // For now, we'll just remove it from local state
+      setNotifications(notifications.filter(n => n.id !== id));
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;

@@ -62,28 +62,14 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
 
+    # Initialize Socket.IO first
+    socketio.init_app(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
+    
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    
-    # JWT error handlers
-    @jwt.expired_token_loader
-    def expired_token_callback(jwt_header, jwt_payload):
-        return jsonify({'msg': 'Token has expired'}), 401
-
-    @jwt.invalid_token_loader
-    def invalid_token_callback(error):
-        return jsonify({'msg': 'Invalid token'}), 401
-
-    @jwt.unauthorized_loader
-    def unauthorized_callback(error):
-        return jsonify({'msg': 'Missing or invalid Authorization header'}), 401
-
-    @jwt.needs_fresh_token_loader
-    def fresh_token_callback(jwt_header, jwt_payload):
-        return jsonify({'msg': 'Fresh token required'}), 401
-    socketio.init_app(app)
-    CORS(app)
+    # Add CORS for regular HTTP requests (Socket.IO handles its own CORS)
+    CORS(app, origins=["*"], supports_credentials=True)
 
     # Register blueprints (import here to avoid circular imports)
     try:

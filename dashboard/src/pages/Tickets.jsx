@@ -5,55 +5,50 @@ import { Plus, Search } from 'lucide-react';
 import { getTickets, createTicket, updateTicket, deleteTicket } from '../api/tickets.js';
 import { getUsers, getCurrentUser } from '../api/users.js';
 import { getComments, createComment } from '../api/comments.js';
+import { useRealtimeTickets, useRealtimeComments } from '../hooks/useRealtime';
 
 const priorityOrder = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 const statusOptions = ['All', 'Open', 'In Progress', 'Closed'];
 const priorityOptions = ['All', 'Urgent', 'High', 'Medium', 'Low'];
 
 export default function Tickets() {
-  const [tickets, setTickets] = useState([]);
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewTicket, setViewTicket] = useState(null);
   const [editTicket, setEditTicket] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState({ content: '' });
   const [currentUser, setCurrentUser] = useState(null);
+
+  // Use real-time hooks
+  const { tickets, loading: ticketsLoading, loadTickets } = useRealtimeTickets();
+  const { comments, loadComments } = useRealtimeComments(viewTicket?.id);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [ticketsData, usersData, currentUserData] = await Promise.all([
-          getTickets(), 
+        const [usersData, currentUserData] = await Promise.all([
           getUsers(),
           getCurrentUser()
         ]);
-        setTickets(ticketsData);
         setUsers(usersData);
         setCurrentUser(currentUserData);
+        // Load tickets using the real-time hook
+        await loadTickets();
       } catch (err) {
         setError(err.message);
-      } finally {
-        setLoading(false);
       }
     };
     fetchData();
-  }, []);
+  }, [loadTickets]);
 
   const fetchTickets = async () => {
-    try {
-      const data = await getTickets();
-      setTickets(data);
-    } catch (err) {
-      setError(err.message);
-    }
+    await loadTickets();
   };
 
   const handleCreateTicket = async (ticketData) => {
@@ -69,14 +64,8 @@ export default function Tickets() {
   const handleView = async (ticket) => {
     setViewTicket(ticket);
     setShowViewModal(true);
-    try {
-      const allComments = await getComments();
-      const ticketComments = allComments.filter(c => c.ticket_id === ticket.id);
-      setComments(ticketComments);
-    } catch (err) {
-      console.error('Error fetching comments:', err);
-      setComments([]);
-    }
+    // Load comments for this ticket using real-time hook
+    await loadComments(ticket.id);
   };
 
   const handleEdit = (ticket) => {
@@ -116,10 +105,7 @@ export default function Tickets() {
         author_id: currentUser.id
       });
       setNewComment({ content: '' });
-      // Refetch comments
-      const allComments = await getComments();
-      const ticketComments = allComments.filter(c => c.ticket_id === viewTicket.id);
-      setComments(ticketComments);
+      // Comments will be updated automatically via WebSocket
     } catch (err) {
       alert('Error adding comment: ' + err.message);
     }
@@ -146,7 +132,7 @@ export default function Tickets() {
       .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
   }, [tickets, search, statusFilter, priorityFilter]);
 
-  if (loading) return <div>Loading...</div>;
+  if (ticketsLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
   return (
