@@ -44,6 +44,19 @@ echo "========================================"
 echo "Support Ticketing System Upgrade Script"
 echo "========================================"
 
+# Function to check Docker Compose availability
+check_docker_compose() {
+    if command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker-compose"
+        return 0
+    elif docker compose version &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker compose"
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Step 1: Check if docker and docker-compose are available
 print_status "Checking Docker installation..."
 if ! command -v docker &> /dev/null; then
@@ -51,7 +64,7 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
+if ! check_docker_compose; then
     print_error "Docker Compose is not installed. Please install Docker Compose first."
     exit 1
 fi
@@ -68,22 +81,22 @@ fi
 
 # Step 3: Build new Docker image
 print_status "Building new Docker image..."
-docker-compose build --no-cache
+$DOCKER_COMPOSE_CMD build --no-cache
 print_success "Docker image built successfully."
 
 # Step 5: Start new containers
 print_status "Starting new containers..."
-docker-compose up -d
+$DOCKER_COMPOSE_CMD up -d
 
 # Wait for containers to be healthy
 print_status "Waiting for containers to start..."
 sleep 10
 
 # Check if containers are running
-if docker-compose ps | grep -q "Up"; then
+if $DOCKER_COMPOSE_CMD ps | grep -q "Up"; then
     print_success "Containers are running."
 else
-    print_error "Failed to start containers. Check logs with: docker-compose logs"
+    print_error "Failed to start containers. Check logs with: $DOCKER_COMPOSE_CMD logs"
     exit 1
 fi
 
@@ -93,7 +106,7 @@ print_status "Running database migrations..."
 sleep 5
 
 # Run migrations inside the container
-docker-compose exec -T app python -c "
+$DOCKER_COMPOSE_CMD exec -T app python -c "
 from app import create_app
 from app.models.base import db
 from flask_migrate import Migrate
@@ -124,7 +137,7 @@ sleep 5
 if curl -f http://localhost:5000/api/docs > /dev/null 2>&1; then
     print_success "Application is responding correctly."
 else
-    print_warning "Application health check failed. Please check logs with: docker-compose logs app"
+    print_warning "Application health check failed. Please check logs with: $DOCKER_COMPOSE_CMD logs app"
 fi
 
 print_success "Upgrade completed successfully!"
@@ -132,6 +145,6 @@ echo ""
 echo "Your application is now running at: http://localhost:5000"
 echo "API documentation available at: http://localhost:5000/api/docs"
 echo ""
-echo "To view logs: docker-compose logs -f"
-echo "To stop: docker-compose down"
-echo "To restart: docker-compose restart"
+echo "To view logs: $DOCKER_COMPOSE_CMD logs -f"
+echo "To stop: $DOCKER_COMPOSE_CMD down"
+echo "To restart: $DOCKER_COMPOSE_CMD restart"
