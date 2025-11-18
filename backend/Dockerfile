@@ -22,14 +22,14 @@ RUN apt-get install -y \
 # Copy project files
 COPY . .
 
+# Install Python dependencies (before switching to user)
+RUN pip install --no-cache-dir -r requirements.txt
+
 # Change ownership
 RUN chown -R app:app /home/app/support-ticketing-system
 
 # Switch to user
 USER app
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
 
 # Expose port
 EXPOSE 5000
