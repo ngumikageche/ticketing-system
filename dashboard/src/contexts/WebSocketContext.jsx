@@ -61,7 +61,7 @@ export const WebSocketProvider = ({ children }) => {
     loadInitialData();
 
     // Try to connect to WebSocket server
-    const newSocket = io('http://localhost:5000', {
+    const newSocket = io(import.meta.env.VITE_WS_BASE || 'http://localhost:5000', {
       auth: {
         token: token
       },
