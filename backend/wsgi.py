@@ -2,12 +2,13 @@ from app import create_app
 from app.models.base import db
 from flask_migrate import Migrate
 import os
+from flask_socketio import WSGIApp
 
 app, socketio = create_app()
 migrate = Migrate(app, db)
 
 # For production with gunicorn + eventlet, expose the WSGI app
-app = socketio.WSGIApp(app)
+app = WSGIApp(socketio)
 
 if __name__ == "__main__":
     # For development, recreate the app without WSGI wrapper
