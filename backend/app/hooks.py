@@ -456,12 +456,35 @@ def _default_ticket_created_handler(ticket):
     conv.save()
 
     # Add participants: requester and assignee
+    # Add participants: requester and assignee (deduplicate and tolerate races)
+    participant_ids = []
     if ticket.requester_id:
-        p = ConversationParticipant(conversation_id=conv.id, user_id=ticket.requester_id)
-        p.save()
+        participant_ids.append(ticket.requester_id)
     if ticket.assignee_id:
-        p = ConversationParticipant(conversation_id=conv.id, user_id=ticket.assignee_id)
-        p.save()
+        participant_ids.append(ticket.assignee_id)
+
+    # Use a set to avoid attempting to insert duplicates when requester==assignee
+    for user_id in set(participant_ids):
+        # Defensive check: don't try to insert if the participant already exists
+        exists = ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=user_id).first()
+        if exists:
+            continue
+        try:
+            p = ConversationParticipant(conversation_id=conv.id, user_id=user_id)
+            p.save()
+        except Exception:
+            # Handle potential race / unique constraint errors gracefully.
+            # If another process inserted the same participant concurrently,
+            # swallow the error after rolling back the failed transaction so
+            # the outer flow can continue.
+            import logging
+            from sqlalchemy.exc import IntegrityError
+
+            logging.exception('error adding conversation participant')
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
 
     # Update ticket to link conversation
     ticket.conversation = conv

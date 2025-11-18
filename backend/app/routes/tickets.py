@@ -76,6 +76,13 @@ def create_ticket():
         import logging
 
         logging.exception('error running ticket.created hooks')
+        # If a hook raised a DB-related exception it may have left the
+        # session in a rolled-back state. Ensure the session is usable
+        # for the response by rolling back any partial transaction.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
     return jsonify(ticket.to_dict()), 201
 
