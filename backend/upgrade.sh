@@ -109,15 +109,31 @@ sleep 5
 $DOCKER_COMPOSE_CMD exec -T app python -c "
 from app import create_app
 from app.models.base import db
-from flask_migrate import Migrate
-import time
+from flask_migrate import Migrate, init, migrate, upgrade
+import os
 
 app = create_app()[0]
-migrate = Migrate(app, db)
+migrate_obj = Migrate(app, db)
 
 with app.app_context():
-    # Run migrations
-    from flask_migrate import upgrade
+    # Check if migrations directory exists and has files
+    migrations_dir = 'migrations'
+    if not os.path.exists(migrations_dir) or not os.listdir(migrations_dir):
+        print('No migrations found. Initializing database...')
+        # Initialize migrations
+        init()
+        print('Migrations initialized.')
+    
+    # Check for model changes and create new migrations if needed
+    print('Checking for model changes...')
+    try:
+        migrate(message='Auto migration')
+        print('New migration created (if changes were detected).')
+    except SystemExit:
+        print('No changes detected, skipping migration creation.')
+    
+    # Always upgrade to latest
+    print('Upgrading database to latest version...')
     upgrade()
     print('Database migrations completed successfully.')
 "
