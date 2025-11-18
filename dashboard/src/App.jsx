@@ -8,12 +8,14 @@ import Users from './pages/Users';
 import Settings from './pages/Settings';
 import Chat from './components/Chat';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/tickets" element={<Tickets />} />

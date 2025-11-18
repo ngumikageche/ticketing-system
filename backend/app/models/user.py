@@ -12,6 +12,10 @@ class User(BaseModel):
     role = db.Column(db.String(20), default='CUSTOMER')
     webhook_url = db.Column(db.String(500))  # Optional webhook URL for real-time notifications
     is_active = db.Column(db.Boolean, default=True)
+    
+    # Security questions for signup
+    security_question = db.Column(db.String(200), nullable=True)
+    security_answer_hash = db.Column(db.String(255), nullable=True)
 
     # Relationships
     requested_tickets = db.relationship('Ticket', foreign_keys='Ticket.requester_id', back_populates='requester')
@@ -29,3 +33,11 @@ class User(BaseModel):
         if not self.password_hash:
             return False
         return bcrypt.checkpw(password.encode(), self.password_hash.encode())
+
+    def set_security_answer(self, answer):
+        self.security_answer_hash = bcrypt.hashpw(answer.lower().strip().encode(), bcrypt.gensalt()).decode()
+
+    def check_security_answer(self, answer):
+        if not self.security_answer_hash:
+            return False
+        return bcrypt.checkpw(answer.lower().strip().encode(), self.security_answer_hash.encode())

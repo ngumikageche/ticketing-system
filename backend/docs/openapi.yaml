@@ -84,6 +84,84 @@ info:
 servers:
   - url: http://localhost:5000
 paths:
+  /api/auth/signup:
+    post:
+      summary: Sign up for a new account
+      tags: [auth]
+      description: |
+        Create a new user account. Requires answering all security questions correctly.
+        - **Admin role**: Assigned if all security questions are answered correctly
+        - **Customer role**: Assigned if at least one security question is answered correctly
+        - **Rejected**: If no security questions are answered correctly
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name, security_answers]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                password:
+                  type: string
+                  minLength: 8
+                  description: Password (minimum 8 characters)
+                name:
+                  type: string
+                  description: User's full name
+                security_answers:
+                  type: array
+                  minItems: 2
+                  maxItems: 2
+                  items:
+                    type: string
+                  description: Answers to all security questions in order (case-insensitive). Must provide answers for both questions.
+                  example: ["2023", "muguku business center"]
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  access_token:
+                    type: string
+                    description: JWT access token for authentication
+        '200':
+          description: Existing soft-deleted account was reactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input data
+        '409':
+          description: User already exists
+
+  /api/auth/security-questions:
+    get:
+      summary: Get available security questions for signup
+      tags: [auth]
+      responses:
+        '200':
+          description: List of security questions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  questions:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Which year was NexTek started?", "What building is the company located at?"]
+
   /api/auth/login:
     post:
       summary: Log in and obtain a JWT access token
@@ -895,6 +973,10 @@ components:
           type: string
           nullable: true
           description: URL for receiving real-time webhook notifications
+        security_question:
+          type: string
+          nullable: true
+          description: Security question for account recovery
         is_active:
           type: boolean
     NewUser:

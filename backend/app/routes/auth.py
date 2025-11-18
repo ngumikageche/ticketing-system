@@ -7,6 +7,112 @@ import uuid
 
 auth_bp = Blueprint('auth', __name__)
 
+# Security questions with correct answers
+SECURITY_QUESTIONS = [
+    {
+        "question": "Which year was NexTek started?",
+        "answer": "2023"
+    },
+    {
+        "question": "What building is the company office located at?",
+        "answer": "muguku business center"
+    }
+]
+
+
+@auth_bp.route('/signup', methods=['POST'])
+def signup():
+    data = request.get_json() or {}
+    
+    required_fields = ['email', 'password', 'name', 'security_answers']
+    for field in required_fields:
+        if field not in data:
+            abort(400, f'{field} is required')
+    
+    email = data['email'].strip().lower()
+    password = data['password']
+    name = data['name'].strip()
+    security_answers = data['security_answers']  # Should be a list of answers
+    
+    # Validate email format
+    if '@' not in email or '.' not in email:
+        abort(400, 'invalid email format')
+    
+    # Validate password strength
+    if len(password) < 8:
+        abort(400, 'password must be at least 8 characters long')
+    
+    # Validate security answers
+    if not isinstance(security_answers, list) or len(security_answers) != len(SECURITY_QUESTIONS):
+        abort(400, 'must provide answers for all security questions')
+    
+    # Check how many answers are correct
+    correct_count = 0
+    for i, answer in enumerate(security_answers):
+        if isinstance(answer, str) and answer.strip().lower() == SECURITY_QUESTIONS[i]['answer']:
+            correct_count += 1
+    
+    # Assign role based on correct answers
+    if correct_count == len(SECURITY_QUESTIONS):
+        role = 'Admin'
+    elif correct_count >= 1:
+        role = 'CUSTOMER'
+    else:
+        abort(400, 'at least one security answer must be correct')
+    
+    # Check if user already exists
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        if existing_user.is_deleted:
+            # Reactivate soft-deleted user
+            existing_user.is_deleted = False
+            existing_user.name = name
+            existing_user.set_password(password)
+            existing_user.role = role
+            # Store the first correct answer as security question/answer
+            for i, answer in enumerate(security_answers):
+                if answer.strip().lower() == SECURITY_QUESTIONS[i]['answer']:
+                    existing_user.security_question = SECURITY_QUESTIONS[i]['question']
+                    existing_user.set_security_answer(answer.strip().lower())
+                    break
+            existing_user.save()
+            return jsonify(existing_user.to_dict()), 200
+        else:
+            abort(409, 'user already exists')
+    
+    # Create new user
+    user = User(
+        email=email,
+        name=name,
+        role=role
+    )
+    user.set_password(password)
+    
+    # Store the first correct answer as security question/answer for password recovery
+    for i, answer in enumerate(security_answers):
+        if answer.strip().lower() == SECURITY_QUESTIONS[i]['answer']:
+            user.security_question = SECURITY_QUESTIONS[i]['question']
+            user.set_security_answer(answer.strip().lower())
+            break
+    
+    user.save()
+    
+    # Create access token
+    access = create_access_token(identity=str(user.id), expires_delta=datetime.timedelta(hours=1))
+    return jsonify({
+        'user': user.to_dict(),
+        'access_token': access
+    }), 201
+
+
+@auth_bp.route('/security-questions', methods=['GET'])
+def get_security_questions():
+    """Get available security questions for signup"""
+    questions = [q['question'] for q in SECURITY_QUESTIONS]
+    return jsonify({
+        'questions': questions
+    }), 200
+
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
