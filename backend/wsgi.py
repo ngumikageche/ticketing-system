@@ -6,13 +6,18 @@ import os
 app, socketio = create_app()
 migrate = Migrate(app, db)
 
+# For production with gunicorn + eventlet, expose the WSGI app
+app = socketio.WSGIApp(app)
+
 if __name__ == "__main__":
+    # For development, recreate the app without WSGI wrapper
+    dev_app, dev_socketio = create_app()
     port = int(os.getenv('PORT', 5000))
     print(f"Starting Socket.IO server on port {port}...")
     try:
-        socketio.run(app, host='0.0.0.0', port=port, debug=True, log_output=True)
+        dev_socketio.run(dev_app, host='0.0.0.0', port=port, debug=True, log_output=True)
     except Exception as e:
         print(f"Error starting server: {e}")
         # Fallback to Flask development server
         print("Falling back to Flask development server...")
-        app.run(host='0.0.0.0', port=port, debug=True)
+        dev_app.run(host='0.0.0.0', port=port, debug=True)
