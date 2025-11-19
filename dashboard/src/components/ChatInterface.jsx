@@ -101,16 +101,23 @@ const ChatInterface = ({ conversation, onBack }) => {
 
     const handleNewMessage = (payload) => {
       const { data } = payload;
+      console.log('[CHAT] Received real-time message update:', data);
       // Check if the message belongs to the current conversation
       const belongsToConversation = 
         (conversation.type === 'ticket' && data.ticket_id === conversation.ticket_id) ||
         (conversation.type !== 'ticket' && data.conversation_id === conversation.id);
 
+      console.log('[CHAT] Message belongs to current conversation:', belongsToConversation, 'conversation:', conversation.id || conversation.ticket_id);
+
       if (belongsToConversation) {
         setMessages(prev => {
           // Avoid duplicates
           const exists = prev.find(msg => msg.id === data.id);
-          if (exists) return prev;
+          if (exists) {
+            console.log('[CHAT] Message already exists, skipping duplicate');
+            return prev;
+          }
+          console.log('[CHAT] Adding new message to UI:', data.id, data.content?.slice(0, 50));
           return [...prev, data];
         });
 
@@ -127,10 +134,13 @@ const ChatInterface = ({ conversation, onBack }) => {
       }
     };
 
-    socket.on('message.created', handleNewMessage);
+    // Listen for both message and comment updates
+    socket.on('message.update', handleNewMessage);
+    socket.on('comment.update', handleNewMessage);
 
     return () => {
-      socket.off('message.created', handleNewMessage);
+      socket.off('message.update', handleNewMessage);
+      socket.off('comment.update', handleNewMessage);
     };
   }, [socket, conversation]);
 
@@ -141,6 +151,8 @@ const ChatInterface = ({ conversation, onBack }) => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
+
+    console.log('[CHAT] Sending message:', newMessage.trim());
 
     try {
       setSending(true);
@@ -156,13 +168,19 @@ const ChatInterface = ({ conversation, onBack }) => {
             message_type: 'text'
           };
 
+      console.log('[CHAT] Message data:', messageData);
+
       const sentMessage = conversation.type === 'ticket'
         ? await sendTicketMessage(messageData)
         : await sendConversationMessage(conversation.id, messageData);
 
-      setMessages(prev => [...prev, sentMessage]);
+      console.log('[CHAT] Message sent successfully:', sentMessage.id);
+
+      // Don't add optimistically - let real-time update handle it
+      // setMessages(prev => [...prev, sentMessage]);
       setNewMessage('');
     } catch (err) {
+      console.error('[CHAT] Error sending message:', err);
       setError(err.message);
     } finally {
       setSending(false);
@@ -219,29 +237,46 @@ const ChatInterface = ({ conversation, onBack }) => {
   // Get recipient name for direct messages
   const getRecipientName = () => {
     if (conversation.type !== 'direct') return null;
-    
+
     // First try to get from conversation participants
     if (conversationDetails?.participants) {
-      const otherParticipant = conversationDetails.participants.find(p => p.user_id !== currentUser?.id);
-      if (otherParticipant?.user_name) {
-        return otherParticipant.user_name;
+      const otherParticipant = conversationDetails.participants.find(p => p.id !== currentUser?.id);
+      if (otherParticipant) {
+        return otherParticipant.name || otherParticipant.username || otherParticipant.email || 'Unknown User';
       }
     }
-    
-    // Fallback to finding from messages
+
+    // Fallback to finding from messages and userMap
     const otherUserMessage = messages.find(msg => msg.sender_id !== currentUser?.id);
-    if (otherUserMessage?.sender_name) {
-      return otherUserMessage.sender_name;
+    if (otherUserMessage) {
+      const senderId = otherUserMessage.sender_id || otherUserMessage.author_id;
+      if (senderId) {
+        const userName = userMap.get(senderId);
+        if (userName && userName !== 'Unknown') {
+          return userName;
+        }
+      }
     }
-    
-    // Last resort
+
+    // Last resort - try to get from any message sender
+    for (const message of messages) {
+      const senderId = message.sender_id || message.author_id;
+      if (senderId && senderId !== currentUser?.id) {
+        const userName = userMap.get(senderId);
+        if (userName && userName !== 'Unknown') {
+          return userName;
+        }
+      }
+    }
+
+    // If we still don't have a name, return a generic label
     return 'Direct Message';
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
-      {/* Chat Header */}
-      <div className="p-4 border-b border-gray-200 bg-white">
+    <div className="h-full flex flex-col bg-white overflow-hidden">
+      {/* Chat Header - Always visible */}
+      <div className="flex-shrink-0 p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
         <div className="flex items-center gap-3">
           {onBack && (
             <button
@@ -274,7 +309,7 @@ const ChatInterface = ({ conversation, onBack }) => {
         </div>
       </div>
 
-      {/* Messages Area */}
+      {/* Messages Area - Only this scrolls */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {Object.entries(messageGroups).map(([date, dateMessages]) => (
           <div key={date}>
@@ -357,8 +392,8 @@ const ChatInterface = ({ conversation, onBack }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
-      <div className="p-4 border-t border-gray-200 bg-white">
+      {/* Message Input - Always visible */}
+      <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white sticky bottom-0 z-10">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <button
             type="button"

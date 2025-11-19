@@ -318,16 +318,13 @@ export default function Notifications() {
             {currentNotifications
               .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
               .map(notification => (
-              <div key={notification.id} className={`p-6 ${!notification.is_read ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}>
+              <div key={notification.id} className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${!notification.is_read ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`} onClick={() => handleNotificationClick(notification)}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p 
-                        className="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
-                        onClick={() => handleNotificationClick(notification)}
-                      >
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-medium text-gray-900">
                         {notification.type === 'message_on_conversation' 
-                          ? `💬 ${notification.message.replace('"conversation"', 'a conversation')}` // Better formatting
+                          ? `💬 ${notification.message.replace('"conversation"', 'a conversation')}`
                           : notification.message
                         }
                       </p>
@@ -339,82 +336,43 @@ export default function Notifications() {
                       )}
                     </div>
                     
-                    {/* Ticket Information */}
-                    {notification.related_type === 'ticket' && notification.related_id && (
-                      <div 
-                        className="mb-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => handleNotificationClick(notification)}
-                      >
-                        {(() => {
-                          const ticketInfo = getTicketInfo(notification.related_id);
-                          return ticketInfo ? (
-                            <div>
-                              <div className="text-sm font-semibold text-gray-800">Ticket Information</div>
-                              <div className="mt-1 text-sm text-gray-600">
-                                <div><strong>ID:</strong> {ticketInfo.ticket_id}</div>
-                                <div><strong>Subject:</strong> {ticketInfo.subject}</div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-sm text-gray-500">
-                              Ticket ID: {notification.related_id} (details not available)
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-
-                    {/* Conversation Information */}
-                    {notification.type === 'message_on_conversation' && (
-                      <div 
-                        className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
-                        onClick={() => handleNotificationClick(notification)}
-                      >
-                        <div className="text-sm font-semibold text-blue-800">💬 Conversation Message</div>
-                        <div className="mt-1 text-sm text-blue-600">
-                          <div>A new message has been posted in a conversation.</div>
-                          <div className="mt-1 font-medium">Message ID: <code className="bg-blue-100 px-1 rounded text-xs">{notification.related_id}</code></div>
-                          <div className="mt-1 text-xs text-blue-500">
-                            💡 <em>To show the actual conversation name, the backend should include <code>conversation_title</code> or <code>conversation_id</code> in the notification data.</em>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>{new Date(notification.created_at).toLocaleString()}</span>
-                      {notification.related_type && notification.related_id && notification.related_type !== 'ticket' && (
-                        <span className="text-blue-600">
-                          Related: {notification.related_type} #{notification.related_id}
-                        </span>
-                      )}
-                      <span className="text-gray-400">Type: {notification.type}</span>
+                    <div className="text-xs text-gray-500">
+                      {new Date(notification.created_at).toLocaleString()}
                     </div>
                   </div>
                   {!notification.is_read && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 ml-4">
                       <button
-                        onClick={() => handleMarkAsRead(notification.id)}
-                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkAsRead(notification.id);
+                        }}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                       >
                         Mark as Read
                       </button>
                       <button
-                        onClick={() => handleDeleteNotification(notification.id)}
-                        className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteNotification(notification.id);
+                        }}
+                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
                         title="Delete notification"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
                   )}
                   {notification.is_read && (
                     <button
-                      onClick={() => handleDeleteNotification(notification.id)}
-                      className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteNotification(notification.id);
+                      }}
+                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 ml-4"
                       title="Delete notification"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   )}
                 </div>

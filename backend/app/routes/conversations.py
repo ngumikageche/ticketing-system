@@ -283,6 +283,7 @@ def create_message(id_):
         parent_message_id=parent_message_id
     )
     m.save()
+    print(f"[MESSAGE] Created message {m.id} in conversation {conv.id} by user {sender_id}")
 
     # emit hook
     try:

@@ -9,10 +9,10 @@ const Chat = () => {
   const initialConversationId = searchParams.get('conversation');
 
   return (
-    <div className="h-screen flex bg-gray-50">
+    <div className="h-screen flex bg-gray-50 overflow-hidden">
       {/* Mobile: Show only conversation list or chat interface */}
-      <div className="flex w-full md:w-auto">
-        <div className={`${selectedConversation ? 'hidden md:block' : 'block'} w-full md:w-80`}>
+      <div className="flex w-full md:w-auto h-full">
+        <div className={`${selectedConversation ? 'hidden md:block' : 'block'} w-full md:w-80 h-full`}>
           <ConversationList
             onSelectConversation={setSelectedConversation}
             selectedConversationId={selectedConversation?.id}
@@ -20,7 +20,7 @@ const Chat = () => {
           />
         </div>
         {selectedConversation && (
-          <div className="flex-1 md:flex-none md:w-full">
+          <div className="flex-1 md:flex-none md:w-full h-full">
             <ChatInterface 
               conversation={selectedConversation} 
               onBack={() => setSelectedConversation(null)}

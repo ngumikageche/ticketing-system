@@ -29,6 +29,7 @@ export default function Tickets() {
 
   // Use real-time hooks
   const { tickets, loading: ticketsLoading, loadTickets } = useRealtimeTickets();
+  const { comments, loading: commentsLoading, loadComments } = useRealtimeComments(viewTicket?.id);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -239,7 +240,7 @@ export default function Tickets() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 relative">
             <button
-              onClick={() => { setShowViewModal(false); setViewTicket(null); setComments([]); setNewComment({ content: '' }); }}
+              onClick={() => { setShowViewModal(false); setViewTicket(null); setNewComment({ content: '' }); }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             >
               ×

@@ -1,6 +1,9 @@
 from collections import defaultdict
 from typing import Callable
 
+# Import BaseModel's db
+from app.models.base import db
+
 # Simple hook/signal registry. Other modules can register handlers for events
 # like 'comment.created', 'comment.updated', 'comment.deleted'. Handlers
 # receive the related model instance as the single positional argument.
@@ -34,74 +37,93 @@ def send(event: str, *args, **kwargs) -> None:
 # Convenience senders
 def send_comment_created(comment):
     send('comment.created', comment)
+    emit_realtime_event('comment', comment.to_dict())
 
 
 def send_comment_updated(comment):
     send('comment.updated', comment)
+    emit_realtime_event('comment', comment.to_dict())
 
 
 def send_comment_deleted(comment):
     send('comment.deleted', comment)
+    emit_realtime_event('comment', comment.to_dict())
 
 
 def send_ticket_created(ticket):
     send('ticket.created', ticket)
+    emit_realtime_event('ticket', ticket.to_dict())
 
 
 def send_ticket_updated(ticket):
     send('ticket.updated', ticket)
+    emit_realtime_event('ticket', ticket.to_dict())
 
 
 def send_ticket_deleted(ticket):
     send('ticket.deleted', ticket)
+    emit_realtime_event('ticket', ticket.to_dict())
 
 
 def send_user_created(user):
     send('user.created', user)
+    emit_realtime_event('user', user.to_dict())
 
 
 def send_user_updated(user):
     send('user.updated', user)
+    emit_realtime_event('user', user.to_dict())
 
 
 def send_user_deleted(user):
     send('user.deleted', user)
+    emit_realtime_event('user', user.to_dict())
 
 
 def send_kb_article_created(article):
     send('kb_article.created', article)
+    emit_realtime_event('kb_article', article.to_dict())
 
 
 def send_kb_article_updated(article):
     send('kb_article.updated', article)
+    emit_realtime_event('kb_article', article.to_dict())
 
 
 def send_kb_article_deleted(article):
     send('kb_article.deleted', article)
+    emit_realtime_event('kb_article', article.to_dict())
 
 
 def send_attachment_created(attachment):
     send('attachment.created', attachment)
+    emit_realtime_event('attachment', attachment.to_dict())
 
 
 def send_attachment_updated(attachment):
     send('attachment.updated', attachment)
+    emit_realtime_event('attachment', attachment.to_dict())
 
 
 def send_attachment_deleted(attachment):
     send('attachment.deleted', attachment)
+    emit_realtime_event('attachment', attachment.to_dict())
 
 
 def send_message_created(message):
+    print(f"[HOOK] send_message_created called for message {message.id} in conversation {message.conversation_id}")
     send('message.created', message)
+    emit_realtime_event('message', message.to_dict())
 
 
 def send_message_deleted(message):
     send('message.deleted', message)
+    emit_realtime_event('message', message.to_dict())
 
 
 def send_conversation_created(conversation):
     send('conversation.created', conversation)
+    emit_realtime_event('conversation', conversation.to_dict())
 
 
 # Default handlers: create notifications when comments change. These are
@@ -317,6 +339,61 @@ def send_webhook_notification(notification, data=None):
         current_app.logger.warning(f"Failed to send webhook to {user.webhook_url}: {e}")
     except Exception as e:
         current_app.logger.exception(f"Error sending webhook for notification {notification.id}: {e}")
+
+
+def emit_realtime_event(event_type, data):
+    """Emit a real-time event to all connected clients for immediate UI updates."""
+    print(f"[REALTIME] Attempting to emit {event_type}.update event with data ID: {data.get('id', 'unknown')}")
+    
+    # Try to import the SocketIO instance from the app package first.
+    # This is more reliable than trying to access current_app.socketio because
+    # the SocketIO instance is created at module import time in app.__init__
+    # and `init_app` is called later.
+    try:
+        from app import socketio as app_socketio
+    except Exception:
+        app_socketio = None
+
+    # Fallback: try to pull from current_app if available
+    if app_socketio is None:
+        try:
+            from flask import current_app
+            app_socketio = getattr(current_app, 'socketio', None) or current_app.extensions.get('socketio') if hasattr(current_app, 'extensions') else None
+        except Exception:
+            app_socketio = None
+
+    if app_socketio:
+        try:
+            payload = {
+                'event': f'{event_type}.update',
+                'data': data
+            }
+            # Emit to all connected clients
+            app_socketio.emit(f'{event_type}.update', payload)
+            print(f"[REALTIME] Successfully emitted {event_type}.update to all clients")
+            try:
+                # Prefer application logger if present
+                from flask import current_app
+                current_app.logger.info(f"Emitted real-time event: {event_type}.update")
+            except Exception:
+                import logging
+                logging.getLogger(__name__).info(f"Emitted real-time event: {event_type}.update")
+        except Exception as e:
+            print(f"[REALTIME] Failed to emit {event_type}.update: {e}")
+            try:
+                from flask import current_app
+                current_app.logger.warning(f"Failed to emit real-time event {event_type}: {e}")
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to emit real-time event {event_type}: {e}")
+    else:
+        print(f"[REALTIME] No SocketIO instance available for {event_type}.update")
+        try:
+            from flask import current_app
+            current_app.logger.warning(f"No SocketIO instance available for {event_type}.update")
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(f"No SocketIO instance available for {event_type}.update")
 
 
 def _send_webhook_for_notification(notification, data=None):
