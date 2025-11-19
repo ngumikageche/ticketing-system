@@ -61,6 +61,33 @@ export const deleteConversation = async (conversationId) => {
   return;
 };
 
+export const markMessageAsRead = async (conversationId, messageId) => {
+  const response = await fetch(`${API_BASE}/conversations/${conversationId}/messages/${messageId}/read`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to mark message as read');
+  return response.json();
+};
+
+export const markConversationAsRead = async (conversationId) => {
+  const response = await fetch(`${API_BASE}/conversations/${conversationId}/read`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to mark conversation as read');
+  return response.json();
+};
+
+export const markConversationReadUpTo = async (conversationId, messageId) => {
+  const response = await fetch(`${API_BASE}/conversations/${conversationId}/read-up-to/${messageId}`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to mark conversation read up to message');
+  return response.json();
+};
+
 export const getTicketMessages = async (ticketId) => {
   const response = await fetch(`${API_BASE}/tickets/${ticketId}/messages`, {
     headers: getAuthHeaders(),

@@ -770,16 +770,31 @@ def _default_message_created_handler(message):
 
     message_data = message.to_dict()  # Include full message data for UI updates
 
+    # Create message preview (truncate to 50 characters)
+    message_preview = message.content[:50] + ('...' if len(message.content) > 50 else '')
+
     # Notify all participants except sender
     participants = conversation.participants
     for p in participants:
         if str(p.user_id) != str(message.sender_id):
+            # Determine conversation title for this user
+            if conversation.type == 'direct':
+                # For direct messages: "Joseph: Hello how are you..."
+                notification_message = f'{sender_label}: {message_preview}'
+                conv_title = sender_label
+            else:
+                # For group/ticket: "Joseph in Healplus: Hello everyone..."
+                conv_title = conversation.title or f"{conversation.type.title()} Conversation"
+                notification_message = f'{sender_label} in {conv_title}: {message_preview}'
+
             notification = Notification(
                 user_id=p.user_id,
                 type='message_on_conversation',
-                message=f'New message in "{conversation.title or "conversation"}" by {sender_label}',
+                message=notification_message,
                 related_id=message.id,
-                related_type='message'
+                related_type='message',
+                conversation_id=conversation.id,
+                conversation_title=conv_title
             )
             notification.save()
             _send_webhook_for_notification(notification, message_data)
@@ -795,12 +810,26 @@ def _default_message_deleted_handler(message):
     # Notify all participants
     participants = conversation.participants
     for p in participants:
+        # Determine conversation title for this user
+        if conversation.type == 'direct':
+            # For direct messages, find the other participant
+            other_participants = [part for part in participants if str(part.user_id) != str(p.user_id)]
+            if other_participants:
+                other_user = other_participants[0].user
+                conv_title = other_user.name or other_user.email
+            else:
+                conv_title = "Direct Conversation"
+        else:
+            conv_title = conversation.title or f"{conversation.type.title()} Conversation"
+
         notification = Notification(
             user_id=p.user_id,
             type='message_deleted',
-            message=f'A message was deleted from "{conversation.title or "conversation"}"',
+            message=f'A message was deleted from {conv_title}',
             related_id=message.id,
-            related_type='message'
+            related_type='message',
+            conversation_id=conversation.id,
+            conversation_title=conv_title
         )
         notification.save()
         _send_webhook_for_notification(notification)

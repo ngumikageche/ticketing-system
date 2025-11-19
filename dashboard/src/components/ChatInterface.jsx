@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Paperclip, Smile, MessageCircle, Users, Ticket, ArrowLeft } from 'lucide-react';
-import { getConversationMessages, sendConversationMessage, getTicketMessages, sendTicketMessage, getConversation } from '../api/conversations.js';
+import { getConversationMessages, sendConversationMessage, getTicketMessages, sendTicketMessage, getConversation, markConversationAsRead } from '../api/conversations.js';
 import { getCurrentUser, getUser } from '../api/users.js';
 import { useWebSocket } from '../contexts/WebSocketContext.jsx';
 
@@ -14,6 +14,7 @@ const ChatInterface = ({ conversation, onBack }) => {
   const [conversationDetails, setConversationDetails] = useState(null);
   const [userMap, setUserMap] = useState(new Map());
   const messagesEndRef = useRef(null);
+  const markedConversationsRef = useRef(new Set());
   const { socket, getRealtimeData } = useWebSocket();
 
   useEffect(() => {
@@ -43,6 +44,17 @@ const ChatInterface = ({ conversation, onBack }) => {
         setCurrentUser(userData);
         if (conversationData) {
           setConversationDetails(conversationData);
+        }
+
+        // Mark conversation as read when opened (only for non-ticket conversations)
+        if (conversation.type !== 'ticket' && !markedConversationsRef.current.has(conversation.id)) {
+          try {
+            await markConversationAsRead(conversation.id);
+            markedConversationsRef.current.add(conversation.id);
+          } catch (err) {
+            console.error('Failed to mark conversation as read:', err);
+            // Don't show error to user as this is not critical functionality
+          }
         }
       } catch (err) {
         setError(err.message);
@@ -312,10 +324,19 @@ const ChatInterface = ({ conversation, onBack }) => {
                       <p className="text-sm">{message.content}</p>
                     </div>
 
-                    <div className={`text-xs text-gray-500 mt-1 px-3 ${
+                    <div className={`text-xs text-gray-500 mt-1 px-3 flex items-center justify-between ${
                       isCurrentUser ? 'text-right' : 'text-left'
                     }`}>
-                      {formatTime(message.created_at)}
+                      <span>{formatTime(message.created_at)}</span>
+                      {isCurrentUser && message.is_read !== undefined && (
+                        <span className="ml-2 flex items-center">
+                          {message.is_read ? (
+                            <span className="text-blue-500">✓✓</span>
+                          ) : (
+                            <span className="text-gray-400">✓</span>
+                          )}
+                        </span>
+                      )}
                     </div>
                   </div>
 

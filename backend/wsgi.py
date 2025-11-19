@@ -1,7 +1,11 @@
+import eventlet
+eventlet.monkey_patch()
+
 from app import create_app
 from app.models.base import db
 from flask_migrate import Migrate
 import os
+import eventlet.wsgi
 
 app, socketio = create_app()
 migrate = Migrate(app, db)
@@ -10,14 +14,13 @@ migrate = Migrate(app, db)
 # so we can use it directly as the WSGI application
 
 if __name__ == "__main__":
-    # For development, recreate the app without WSGI wrapper
-    dev_app, dev_socketio = create_app()
     port = int(os.getenv('PORT', 5000))
-    print(f"Starting Socket.IO server on port {port}...")
+    print(f"Starting Socket.IO server with eventlet on port {port}...")
     try:
-        dev_socketio.run(dev_app, host='0.0.0.0', port=port, debug=True, log_output=True)
+        # Use eventlet WSGI server for Socket.IO compatibility
+        eventlet.wsgi.server(eventlet.listen(('0.0.0.0', port)), app)
     except Exception as e:
         print(f"Error starting server: {e}")
         # Fallback to Flask development server
         print("Falling back to Flask development server...")
-        dev_app.run(host='0.0.0.0', port=port, debug=True)
+        app.run(host='0.0.0.0', port=port, debug=True)

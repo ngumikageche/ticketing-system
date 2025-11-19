@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { setWebhookUrl, getWebhookUrl, testWebhook } from '../api/notifications.js';
+import { setWebhookUrl, getWebhookUrl } from '../api/users.js';
+import { testWebhook } from '../api/notifications.js';
 
 export default function Settings() {
   const [webhookUrl, setWebhookUrl] = useState('');

@@ -73,6 +73,10 @@ The system sends notifications for these events:
 **Messages:**
 - `message_on_ticket`: New message on user's ticket
 - `message_deleted`: Message on user's ticket was deleted
+- `message_on_conversation`: New message in conversation user participates in
+
+**Message Read Status:**
+The system tracks per-user message read status for WhatsApp-like read receipts. Messages include an `is_read` field indicating read status for the current user. Users can mark messages as read through dedicated endpoints.
 
 **Tickets:**
 - `new_ticket`: New ticket created (admins only)
@@ -94,6 +98,82 @@ The system sends notifications for these events:
 
 **Testing:**
 - `webhook_test`: Test notification for webhook verification
+
+## Message Read Status
+
+The system implements WhatsApp-like read receipts with per-user message tracking:
+
+### Read Status Tracking
+
+- **Per-user tracking**: Each user has individual read status for messages
+- **Real-time updates**: Read status is updated immediately when marked as read
+- **Bulk operations**: Mark entire conversations or messages up to a point as read
+
+### Read Status API
+
+```javascript
+// Mark single message as read
+fetch(`/api/conversations/${conversationId}/messages/${messageId}/read`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
+});
+
+// Mark entire conversation as read
+fetch(`/api/conversations/${conversationId}/read`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
+});
+
+// Mark messages up to a point as read
+fetch(`/api/conversations/${conversationId}/read-up-to/${messageId}`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
+});
+```
+
+### Frontend Integration
+
+```javascript
+// When fetching messages, check read status
+const messages = await fetch(`/api/conversations/${conversationId}/messages`);
+const messageData = await messages.json();
+
+// Each message includes is_read field
+messages.forEach(message => {
+  if (message.is_read) {
+    // Show as read (e.g., remove bold styling)
+    markMessageAsRead(message.id);
+  } else {
+    // Show as unread (e.g., bold text, blue dot)
+    markMessageAsUnread(message.id);
+  }
+});
+
+// Auto-mark messages as read when viewed
+function markMessageAsRead(messageId) {
+  fetch(`/api/conversations/${conversationId}/messages/${messageId}/read`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+}
+
+// Mark conversation as read when opening it
+function markConversationAsRead(conversationId) {
+  fetch(`/api/conversations/${conversationId}/read`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+}
+```
 
 ## Frontend Integration Examples
 

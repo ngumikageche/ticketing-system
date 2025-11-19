@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ConversationList from './ConversationList.jsx';
 import ChatInterface from './ChatInterface.jsx';
 
 const Chat = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
+  const [searchParams] = useSearchParams();
+  const initialConversationId = searchParams.get('conversation');
 
   return (
     <div className="h-screen flex bg-gray-50">
@@ -13,6 +16,7 @@ const Chat = () => {
           <ConversationList
             onSelectConversation={setSelectedConversation}
             selectedConversationId={selectedConversation?.id}
+            initialConversationId={initialConversationId}
           />
         </div>
         {selectedConversation && (

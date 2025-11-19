@@ -24,6 +24,16 @@ export const markNotificationAsRead = async (id) => {
   return response.json();
 };
 
+export const deleteNotification = async (id) => {
+  const response = await fetch(`${API_BASE}/notifications/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to delete notification');
+  // 204 responses have no content, so we don't call response.json()
+  return response.status === 204 ? null : response.json();
+};
+
 export const setWebhookUrl = async (webhookUrl) => {
   const response = await fetch(`${API_BASE}/users/me/webhook`, {
     method: 'PUT',

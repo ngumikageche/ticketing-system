@@ -5,7 +5,7 @@ import { getCurrentUser } from '../api/users.js';
 import { useWebSocket } from '../contexts/WebSocketContext.jsx';
 import CreateConversationModal from './CreateConversationModal.jsx';
 
-const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
+const ConversationList = ({ onSelectConversation, selectedConversationId, initialConversationId }) => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -68,6 +68,14 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
         setError(err.message);
       } finally {
         setLoading(false);
+      }
+
+      // Auto-select conversation if specified in URL
+      if (initialConversationId) {
+        const conversationToSelect = conversationsData.find(conv => conv.id === initialConversationId);
+        if (conversationToSelect) {
+          onSelectConversation(conversationToSelect);
+        }
       }
     };
     fetchData();

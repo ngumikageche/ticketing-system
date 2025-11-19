@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import TicketModal from '../components/TicketModal';
 import TicketRow from '../components/TicketRow';
 import { Plus, Search } from 'lucide-react';
@@ -24,10 +25,10 @@ export default function Tickets() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [newComment, setNewComment] = useState({ content: '' });
   const [currentUser, setCurrentUser] = useState(null);
+  const [searchParams] = useSearchParams();
 
   // Use real-time hooks
   const { tickets, loading: ticketsLoading, loadTickets } = useRealtimeTickets();
-  const { comments, loadComments } = useRealtimeComments(viewTicket?.id);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,6 +47,17 @@ export default function Tickets() {
     };
     fetchData();
   }, []);
+
+  // Handle URL parameter for auto-opening ticket
+  useEffect(() => {
+    const ticketId = searchParams.get('ticket');
+    if (ticketId && tickets.length > 0) {
+      const ticketToOpen = tickets.find(ticket => ticket.id === ticketId || ticket.ticket_id === ticketId);
+      if (ticketToOpen) {
+        handleView(ticketToOpen);
+      }
+    }
+  }, [searchParams, tickets]);
 
   const fetchTickets = async () => {
     await loadTickets();

@@ -6,6 +6,8 @@ import KnowledgeBase from './pages/KnowledgeBase';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import Testing from './pages/Testing';
+import Notifications from './pages/Notifications';
 import Chat from './components/Chat';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -20,9 +22,11 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/testing" element={<Testing />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>

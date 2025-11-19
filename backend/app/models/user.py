@@ -25,6 +25,7 @@ class User(BaseModel):
     articles = db.relationship('KnowledgeBaseArticle', back_populates='author')
     notifications = db.relationship('Notification', back_populates='user')
     conversation_participations = db.relationship('ConversationParticipant', back_populates='user')
+    testing_sessions = db.relationship('Testing', back_populates='tester')
 
     def set_password(self, password):
         self.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -41,3 +42,9 @@ class User(BaseModel):
         if not self.security_answer_hash:
             return False
         return bcrypt.checkpw(answer.lower().strip().encode(), self.security_answer_hash.encode())
+
+    def to_dict(self, exclude=None, include=None):
+        """Override to exclude sensitive fields"""
+        exclude = exclude or set()
+        exclude.update({'password_hash', 'security_answer_hash'})
+        return super().to_dict(exclude=exclude, include=include)

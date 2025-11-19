@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Support Ticketing System API
   version: 1.0.0
@@ -84,6 +84,84 @@ info:
 servers:
   - url: http://localhost:5000
 paths:
+  /api/auth/signup:
+    post:
+      summary: Sign up for a new account
+      tags: [auth]
+      description: |
+        Create a new user account. Requires answering all security questions correctly.
+        - **Admin role**: Assigned if all security questions are answered correctly
+        - **Customer role**: Assigned if at least one security question is answered correctly
+        - **Rejected**: If no security questions are answered correctly
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name, security_answers]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                password:
+                  type: string
+                  minLength: 8
+                  description: Password (minimum 8 characters)
+                name:
+                  type: string
+                  description: User's full name
+                security_answers:
+                  type: array
+                  minItems: 2
+                  maxItems: 2
+                  items:
+                    type: string
+                  description: Answers to all security questions in order (case-insensitive). Must provide answers for both questions.
+                  example: ["2023", "muguku business center"]
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  access_token:
+                    type: string
+                    description: JWT access token for authentication
+        '200':
+          description: Existing soft-deleted account was reactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input data
+        '409':
+          description: User already exists
+
+  /api/auth/security-questions:
+    get:
+      summary: Get available security questions for signup
+      tags: [auth]
+      responses:
+        '200':
+          description: List of security questions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  questions:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Which year was NexTek started?", "What building is the company located at?"]
+
   /api/auth/login:
     post:
       summary: Log in and obtain a JWT access token
@@ -757,7 +835,7 @@ paths:
       summary: Create a conversation
       description: |
         Create a new conversation. Requirements vary by type:
-        - **direct**: Requires recipient_id (creates DM between creator and recipient)
+        - **direct**: Requires recipient_id. If a direct conversation already exists between these users, returns the existing conversation instead of creating a new one.
         - **group**: Requires participants array and optional title
         - **ticket**: Requires ticket_id (auto-creates conversation for ticket participants)
       requestBody:
@@ -767,34 +845,18 @@ paths:
             schema:
               $ref: '#/components/schemas/NewConversation'
       responses:
-        '201':
-          description: Conversation created
+        '200':
+          description: Existing direct conversation returned
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Conversation'
-
-  /api/conversations/{id_}:
-    parameters:
-      - $ref: '#/components/parameters/id'
-    delete:
-      tags: [conversations]
-      summary: Delete conversation
-      description: |
-        Delete a conversation (participants only). 
-        Checks the conversation status and type before deletion:
-        - Direct conversations can be deleted by participants
-        - Group conversations can be deleted by admins or creators
-        - Ticket conversations cannot be deleted (use ticket deletion instead)
-      responses:
-        '204':
-          description: Conversation deleted
-        '403':
-          description: Not authorized to delete this conversation
-        '404':
-          description: Conversation not found
-        '409':
-          description: Conversation cannot be deleted due to its current status or type
+        '201':
+          description: New conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
 
   /api/conversations/{id_}:
     parameters:
@@ -812,6 +874,13 @@ paths:
                 $ref: '#/components/schemas/Conversation'
         '403':
           description: Not authorized to access this direct conversation
+    delete:
+      tags: [conversations]
+      summary: Delete conversation
+      description: Delete a conversation (participants only)
+      responses:
+        '204':
+          description: Conversation deleted
   /api/conversations/{id_}/messages:
     parameters:
       - $ref: '#/components/parameters/id'
@@ -868,6 +937,112 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConversationParticipant'
 
+  /api/testing/:
+    get:
+      tags: [testing]
+      summary: List testing sessions
+      parameters:
+        - name: ticket_id
+          in: query
+          schema:
+            type: string
+          description: Filter by ticket ID
+        - name: user_id
+          in: query
+          schema:
+            type: string
+          description: Filter by user ID
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, passed, failed]
+          description: Filter by status
+      responses:
+        '200':
+          description: List of testing sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Testing'
+    post:
+      tags: [testing]
+      summary: Create a new testing session
+      description: Can only be created for tickets with status 'resolved'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewTesting'
+      responses:
+        '201':
+          description: Testing session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testing'
+        '400':
+          description: Invalid request or ticket not eligible for testing
+        '401':
+          description: Unauthorized
+
+  /api/testing/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [testing]
+      summary: Get testing session by ID
+      responses:
+        '200':
+          description: Testing session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testing'
+        '404':
+          description: Testing session not found
+    put:
+      tags: [testing]
+      summary: Update testing session
+      description: Only the tester can update their testing session. When status is set to 'passed', the associated ticket status changes to 'closed'.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestingUpdate'
+      responses:
+        '200':
+          description: Testing session updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testing'
+        '403':
+          description: Forbidden - only tester can update
+        '404':
+          description: Testing session not found
+    delete:
+      tags: [testing]
+      summary: Delete testing session
+      description: Only the tester can delete their testing session
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Testing session deleted
+        '403':
+          description: Forbidden - only tester can delete
+        '404':
+          description: Testing session not found
+
 components:
   securitySchemes:
     bearerAuth:
@@ -900,6 +1075,10 @@ components:
           type: string
           nullable: true
           description: URL for receiving real-time webhook notifications
+        security_question:
+          type: string
+          nullable: true
+          description: Security question for account recovery
         is_active:
           type: boolean
     NewUser:
@@ -1182,6 +1361,32 @@ components:
         created: { type: integer }
         resolved: { type: integer }
 
+    Testing:
+      type: object
+      properties:
+        id: { type: string }
+        ticket_id: { type: string }
+        user_id: { type: string }
+        status: { type: string, enum: [pending, in_progress, passed, failed] }
+        test_type: { type: string, enum: [manual, unit, integration] }
+        results: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NewTesting:
+      type: object
+      required: [ticket_id]
+      properties:
+        ticket_id: { type: string }
+        status: { type: string, enum: [pending, in_progress, passed, failed] }
+        test_type: { type: string, enum: [manual, unit, integration] }
+        results: { type: string }
+    TestingUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [pending, in_progress, passed, failed] }
+        test_type: { type: string, enum: [manual, unit, integration] }
+        results: { type: string }
+
     WebhookPayload:
       type: object
       required: [event, notification]
@@ -1238,3 +1443,5 @@ tags:
     description: Webhook configuration and receiver endpoints
   - name: dashboard
     description: Reporting and analytics endpoints
+  - name: testing
+    description: Testing and quality assurance endpoints

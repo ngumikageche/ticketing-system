@@ -1,4 +1,4 @@
-import { Home, Ticket, MessageCircle, BookOpen, BarChart3, Users, Settings as SettingsIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Home, Ticket, MessageCircle, BookOpen, BarChart3, Users, Settings as SettingsIcon, ChevronLeft, ChevronRight, X, FlaskConical, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
@@ -6,9 +6,11 @@ const menu = [
   { label: 'Dashboard', icon: Home, path: '/' },
   { label: 'Tickets', icon: Ticket, path: '/tickets' },
   { label: 'Chat', icon: MessageCircle, path: '/chat' },
+  { label: 'Notifications', icon: Bell, path: '/notifications' },
   { label: 'Knowledge Base', icon: BookOpen, path: '/knowledge-base' },
   { label: 'Reports', icon: BarChart3, path: '/reports' },
   { label: 'Users', icon: Users, path: '/users' },
+  { label: 'Testing', icon: FlaskConical, path: '/testing' },
   { label: 'Settings', icon: SettingsIcon, path: '/settings' },
 ];
 
