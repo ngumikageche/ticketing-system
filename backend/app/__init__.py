@@ -107,8 +107,17 @@ def create_app():
          ], 
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
          expose_headers=["Access-Control-Allow-Origin"])
+
+    # Add CORS debugging
+    @app.before_request
+    def log_cors_requests():
+        if request.method == 'OPTIONS':
+            app.logger.info(f"CORS preflight: {request.method} {request.path} from {request.headers.get('Origin', 'unknown')}")
+            app.logger.info(f"Request headers: {dict(request.headers)}")
+        elif 'Origin' in request.headers:
+            app.logger.info(f"CORS request: {request.method} {request.path} from {request.headers.get('Origin', 'unknown')}")
 
     # Register blueprints (import here to avoid circular imports)
     try:
