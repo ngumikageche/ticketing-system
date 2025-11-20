@@ -119,6 +119,36 @@ def create_app():
         elif 'Origin' in request.headers:
             app.logger.info(f"CORS request: {request.method} {request.path} from {request.headers.get('Origin', 'unknown')}")
 
+    # Explicitly ensure CORS headers are added to ALL responses.
+    # This is a fallback in cases where Flask-CORS isn't present or a middleware short-circuits
+    # (for example when an authentication decorator returns a 401/403 before a route handler).
+    # We check the Origin header and only set the headers for allowed origins to avoid
+    # inadvertently exposing the API.
+    @app.after_request
+    def add_cors_headers(response):
+        origin = request.headers.get('Origin')
+        allowed_origins = [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "https://support.nextek.co.ke",
+            "http://support.nextek.co.ke",
+            "https://sapi.nextek.co.ke",
+            "http://sapi.nextek.co.ke",
+        ]
+
+        # Add headers only for trusted origins
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            # Allow cookies/credentials (frontend requests may be authorized via cookies or headers)
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+            response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+            # If the client is expecting this header in the response, include it too
+            response.headers['Access-Control-Expose-Headers'] = 'Access-Control-Allow-Origin'
+
+        return response
+
     # Register blueprints (import here to avoid circular imports)
     try:
         from .routes.auth import auth_bp
