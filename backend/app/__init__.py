@@ -64,7 +64,7 @@ def create_app():
 
     # Initialize Socket.IO first
     socketio.init_app(app, 
-                      cors_allowed_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "*"],
+                      cors_allowed_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "https://support.nextek.co.ke", "http://support.nextek.co.ke", "*"],
                       logger=True, 
                       engineio_logger=True)
     
@@ -73,7 +73,7 @@ def create_app():
     jwt.init_app(app)
     # Add CORS for regular HTTP requests (Socket.IO handles its own CORS)
     CORS(app, 
-         origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "*"], 
+         origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "https://support.nextek.co.ke", "http://support.nextek.co.ke", "*"], 
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
