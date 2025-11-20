@@ -60,8 +60,22 @@ export const WebSocketProvider = ({ children }) => {
 
     loadInitialData();
 
-    // Try to connect to WebSocket server
-    const newSocket = io(import.meta.env.VITE_WS_BASE || 'http://localhost:5000', {
+    // Try to connect to WebSocket server (skip in production if not configured)
+    const isProduction = import.meta.env.PROD;
+    const wsUrl = import.meta.env.VITE_WS_BASE || 'http://localhost:5000';
+    
+    // In production, skip WebSocket and use polling only
+    if (isProduction && wsUrl.includes('sapi.nextek.co.ke')) {
+      console.log('[WEBSOCKET] Production environment detected, using polling only');
+      setIsConnected(false);
+      if (!pollingInterval) {
+        const interval = setInterval(pollNotifications, 30000);
+        setPollingInterval(interval);
+      }
+      return;
+    }
+
+    const newSocket = io(wsUrl, {
       auth: {
         token: token
       },
