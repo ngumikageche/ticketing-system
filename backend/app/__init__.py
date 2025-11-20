@@ -22,36 +22,40 @@ except Exception:
     def CORS(app):
         return None
 
+# Define fallback classes
+class _NoOpSocketIO:
+    def __init__(self, *args, **kwargs):
+        pass
+    def init_app(self, *a, **k):
+        return None
+    def emit(self, *args, **kwargs):
+        pass
+    def on(self, *args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    def run(self, *args, **kwargs):
+        pass
+    @property
+    def server(self):
+        return self
+    def join_room(self, *args, **kwargs):
+        pass
+    def leave_room(self, *args, **kwargs):
+        pass
+
 try:
     from flask_socketio import SocketIO, join_room, leave_room
     from flask import request
     import os
+    SOCKETIO_AVAILABLE = True
 except Exception:
-    class _NoOpSocketIO:
-        def __init__(self, *args, **kwargs):
-            pass
-        def init_app(self, *a, **k):
-            return None
-        def emit(self, *args, **kwargs):
-            pass
-        def on(self, *args, **kwargs):
-            def decorator(func):
-                return func
-            return decorator
-        def run(self, *args, **kwargs):
-            pass
-        @property
-        def server(self):
-            return self
-        def join_room(self, *args, **kwargs):
-            pass
-        def leave_room(self, *args, **kwargs):
-            pass
     SocketIO = _NoOpSocketIO
     join_room = lambda *args, **kwargs: None
     leave_room = lambda *args, **kwargs: None
     from flask import request
     os = None
+    SOCKETIO_AVAILABLE = False
 
 # Import BaseModel's db
 from app.models.base import db
@@ -59,9 +63,9 @@ from app.models.base import db
 migrate = Migrate()
 jwt = JWTManager()
 
-# Only initialize SocketIO if we're not running database commands
+# Only initialize SocketIO if we're not running database commands and SocketIO is available
 # This prevents eventlet monkey patching issues during flask db commands
-if os and 'db' not in os.sys.argv:
+if SOCKETIO_AVAILABLE and os and 'db' not in os.sys.argv:
     socketio = SocketIO(cors_allowed_origins="*", logger=True, engineio_logger=True)
 else:
     socketio = _NoOpSocketIO()
@@ -72,8 +76,17 @@ def create_app():
 
     # Only initialize Socket.IO if we're running the server (not during db commands)
     if hasattr(socketio, 'init_app') and callable(getattr(socketio, 'init_app', None)):
+        # Be explicit about allowed origins. Avoid using "*" when supporting credentials.
         socketio.init_app(app, 
-                          cors_allowed_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "https://support.nextek.co.ke", "http://support.nextek.co.ke", "*"],
+                          cors_allowed_origins=[
+                              "http://localhost:5173",
+                              "http://localhost:3000",
+                              "http://localhost:8080",
+                              "https://support.nextek.co.ke",
+                              "http://support.nextek.co.ke",
+                              "https://sapi.nextek.co.ke",
+                              "http://sapi.nextek.co.ke",
+                          ],
                           logger=True, 
                           engineio_logger=True)
     
@@ -81,8 +94,17 @@ def create_app():
     migrate.init_app(app, db)
     jwt.init_app(app)
     # Add CORS for regular HTTP requests (Socket.IO handles its own CORS)
+    # Explicit CORS origins: include local dev origins and production hosts (support + sapi)
     CORS(app, 
-         origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "https://support.nextek.co.ke", "http://support.nextek.co.ke", "*"], 
+         origins=[
+             "http://localhost:5173",
+             "http://localhost:3000",
+             "http://localhost:8080",
+             "https://support.nextek.co.ke",
+             "http://support.nextek.co.ke",
+             "https://sapi.nextek.co.ke",
+             "http://sapi.nextek.co.ke",
+         ], 
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
