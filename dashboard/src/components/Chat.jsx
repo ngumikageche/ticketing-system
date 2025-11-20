@@ -11,7 +11,7 @@ const Chat = () => {
   return (
     <div className="h-screen flex bg-gray-50 overflow-hidden">
       {/* Mobile: Show only conversation list or chat interface */}
-      <div className="flex w-full md:w-auto h-full">
+    <div className="flex w-full h-full">
         <div className={`${selectedConversation ? 'hidden md:block' : 'block'} w-full md:w-80 h-full`}>
           <ConversationList
             onSelectConversation={setSelectedConversation}
@@ -20,7 +20,7 @@ const Chat = () => {
           />
         </div>
         {selectedConversation && (
-          <div className="flex-1 md:flex-none md:w-full h-full">
+          <div className="flex-1 h-full">
             <ChatInterface 
               conversation={selectedConversation} 
               onBack={() => setSelectedConversation(null)}
