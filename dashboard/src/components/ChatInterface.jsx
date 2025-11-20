@@ -111,12 +111,27 @@ const ChatInterface = ({ conversation, onBack }) => {
 
       if (belongsToConversation) {
         setMessages(prev => {
-          // Avoid duplicates
+          // Check if this message already exists (avoid duplicates)
           const exists = prev.find(msg => msg.id === data.id);
           if (exists) {
             console.log('[CHAT] Message already exists, skipping duplicate');
             return prev;
           }
+
+          // Check if there's an optimistic message to replace
+          const optimisticIndex = prev.findIndex(msg => 
+            msg.isOptimistic && msg.content === data.content && 
+            (msg.sender_id === data.sender_id || msg.author_id === data.author_id)
+          );
+          
+          if (optimisticIndex !== -1) {
+            // Replace optimistic message with real one
+            console.log('[CHAT] Replacing optimistic message with real message:', data.id);
+            const newMessages = [...prev];
+            newMessages[optimisticIndex] = data;
+            return newMessages;
+          }
+
           console.log('[CHAT] Adding new message to UI:', data.id, data.content?.slice(0, 50));
           return [...prev, data];
         });
@@ -176,8 +191,14 @@ const ChatInterface = ({ conversation, onBack }) => {
 
       console.log('[CHAT] Message sent successfully:', sentMessage.id);
 
-      // Don't add optimistically - let real-time update handle it
-      // setMessages(prev => [...prev, sentMessage]);
+      // Optimistically add the message to UI immediately for better UX
+      const optimisticMessage = {
+        ...sentMessage,
+        id: `temp-${Date.now()}`, // Temporary ID to avoid conflicts
+        isOptimistic: true // Mark as optimistic
+      };
+      setMessages(prev => [...prev, optimisticMessage]);
+      
       setNewMessage('');
     } catch (err) {
       console.error('[CHAT] Error sending message:', err);
