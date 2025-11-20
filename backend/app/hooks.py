@@ -463,9 +463,16 @@ def _default_comment_updated_handler(comment):
     if ticket is None:
         return
     
+    # Get the current user who made the update
+    from flask_jwt_extended import get_jwt_identity
+    try:
+        current_user_id = str(get_jwt_identity())
+    except:
+        current_user_id = None
+    
     comment_data = comment.to_dict()  # Include full comment data for UI updates
     
-    if ticket.requester_id:
+    if ticket.requester_id and (not current_user_id or str(ticket.requester_id) != current_user_id):
         notification = Notification(
             user_id=ticket.requester_id,
             type='comment_updated',
@@ -476,7 +483,7 @@ def _default_comment_updated_handler(comment):
         notification.save()
         _send_webhook_for_notification(notification, comment_data)
     
-    if ticket.assignee_id:
+    if ticket.assignee_id and (not current_user_id or str(ticket.assignee_id) != current_user_id):
         notification = Notification(
             user_id=ticket.assignee_id,
             type='comment_updated',
@@ -567,10 +574,13 @@ def _default_ticket_created_handler(ticket):
     ticket.conversation = conv
     ticket.save()
 
-    # Notify all admins about new ticket
+    # Notify all admins about new ticket (exclude the creator if they are an admin)
     from app.models.user import User
+    creator_id = ticket.requester_id or ticket.assignee_id
     admins = User.active().filter(User.role.ilike('ADMIN')).all()
     for admin in admins:
+        if creator_id and str(admin.id) == str(creator_id):
+            continue  # Skip notifying the creator if they are an admin
         notification = Notification(
             user_id=admin.id,
             type='new_ticket',
@@ -581,8 +591,8 @@ def _default_ticket_created_handler(ticket):
         notification.save()
         _send_webhook_for_notification(notification)
 
-    # Notify the assignee that they have been assigned this ticket
-    if ticket.assignee_id:
+    # Notify the assignee that they have been assigned this ticket (only if different from creator)
+    if ticket.assignee_id and (not creator_id or str(ticket.assignee_id) != str(creator_id)):
         try:
             assignee_notification = Notification(
                 user_id=ticket.assignee_id,
@@ -603,10 +613,17 @@ def _default_ticket_created_handler(ticket):
 def _default_ticket_updated_handler(ticket):
     from app.models.notification import Notification
 
-    # Notify requester and assignee about ticket updates
+    # Get the current user who made the update (from Flask-JWT-Extended)
+    from flask_jwt_extended import get_jwt_identity
+    try:
+        current_user_id = str(get_jwt_identity())
+    except:
+        current_user_id = None
+
+    # Notify requester and assignee about ticket updates (exclude the updater)
     ticket_data = ticket.to_dict()  # Include full ticket data for UI updates
     
-    if ticket.requester_id:
+    if ticket.requester_id and (not current_user_id or str(ticket.requester_id) != current_user_id):
         notification = Notification(
             user_id=ticket.requester_id,
             type='ticket_updated',
@@ -617,7 +634,7 @@ def _default_ticket_updated_handler(ticket):
         notification.save()
         _send_webhook_for_notification(notification, ticket_data)
 
-    if ticket.assignee_id:
+    if ticket.assignee_id and (not current_user_id or str(ticket.assignee_id) != current_user_id):
         notification = Notification(
             user_id=ticket.assignee_id,
             type='ticket_updated',
@@ -659,12 +676,21 @@ def _default_ticket_deleted_handler(ticket):
 def _default_user_created_handler(user):
     from app.models.notification import Notification
 
-    # Notify all admins about new user
+    # Get the current user who created this user
+    from flask_jwt_extended import get_jwt_identity
+    try:
+        current_user_id = str(get_jwt_identity())
+    except:
+        current_user_id = None
+
+    # Notify all admins about new user (exclude the creator if they are an admin)
     from app.models.user import User
     admins = User.active().filter(User.role.ilike('ADMIN')).all()
     user_data = user.to_dict()  # Include full user data for UI updates
     
     for admin in admins:
+        if current_user_id and str(admin.id) == current_user_id:
+            continue  # Skip notifying the creator if they are an admin
         notification = Notification(
             user_id=admin.id,
             type='user_created',
@@ -707,12 +733,21 @@ def _default_user_deleted_handler(user):
 def _default_kb_article_created_handler(article):
     from app.models.notification import Notification
 
-    # Notify all users about new KB article (could be filtered by role/tags)
+    # Get the current user who created this article
+    from flask_jwt_extended import get_jwt_identity
+    try:
+        current_user_id = str(get_jwt_identity())
+    except:
+        current_user_id = None
+
+    # Notify all users about new KB article (exclude the creator)
     from app.models.user import User
     users = User.active().all()
     article_data = article.to_dict()  # Include full article data for UI updates
     
     for user in users:
+        if current_user_id and str(user.id) == current_user_id:
+            continue  # Skip notifying the creator
         notification = Notification(
             user_id=user.id,
             type='kb_article_created',
@@ -747,10 +782,17 @@ def _default_attachment_created_handler(attachment):
     if ticket is None:
         return
 
+    # Get the current user who uploaded the attachment
+    from flask_jwt_extended import get_jwt_identity
+    try:
+        current_user_id = str(get_jwt_identity())
+    except:
+        current_user_id = None
+
     attachment_data = attachment.to_dict()  # Include full attachment data for UI updates
 
-    # Notify ticket requester and assignee about new attachment
-    if ticket.requester_id:
+    # Notify ticket requester and assignee about new attachment (exclude the uploader)
+    if ticket.requester_id and (not current_user_id or str(ticket.requester_id) != current_user_id):
         notification = Notification(
             user_id=ticket.requester_id,
             type='attachment_added',
@@ -761,7 +803,7 @@ def _default_attachment_created_handler(attachment):
         notification.save()
         _send_webhook_for_notification(notification, attachment_data)
 
-    if ticket.assignee_id:
+    if ticket.assignee_id and (not current_user_id or str(ticket.assignee_id) != current_user_id):
         notification = Notification(
             user_id=ticket.assignee_id,
             type='attachment_added',
@@ -780,8 +822,15 @@ def _default_attachment_updated_handler(attachment):
     if ticket is None:
         return
 
-    # Notify ticket requester and assignee about attachment updates
-    if ticket.requester_id:
+    # Get the current user who updated the attachment
+    from flask_jwt_extended import get_jwt_identity
+    try:
+        current_user_id = str(get_jwt_identity())
+    except:
+        current_user_id = None
+
+    # Notify ticket requester and assignee about attachment updates (exclude the updater)
+    if ticket.requester_id and (not current_user_id or str(ticket.requester_id) != current_user_id):
         notification = Notification(
             user_id=ticket.requester_id,
             type='attachment_updated',
@@ -792,7 +841,7 @@ def _default_attachment_updated_handler(attachment):
         notification.save()
         _send_webhook_for_notification(notification)
 
-    if ticket.assignee_id:
+    if ticket.assignee_id and (not current_user_id or str(ticket.assignee_id) != current_user_id):
         notification = Notification(
             user_id=ticket.assignee_id,
             type='attachment_updated',

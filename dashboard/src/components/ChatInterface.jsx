@@ -111,12 +111,27 @@ const ChatInterface = ({ conversation, onBack }) => {
 
       if (belongsToConversation) {
         setMessages(prev => {
-          // Avoid duplicates
+          // Check if this message already exists (avoid duplicates)
           const exists = prev.find(msg => msg.id === data.id);
           if (exists) {
             console.log('[CHAT] Message already exists, skipping duplicate');
             return prev;
           }
+
+          // Check if there's an optimistic message to replace
+          const optimisticIndex = prev.findIndex(msg => 
+            msg.isOptimistic && msg.content === data.content && 
+            (msg.sender_id === data.sender_id || msg.author_id === data.author_id)
+          );
+          
+          if (optimisticIndex !== -1) {
+            // Replace optimistic message with real one
+            console.log('[CHAT] Replacing optimistic message with real message:', data.id);
+            const newMessages = [...prev];
+            newMessages[optimisticIndex] = data;
+            return newMessages;
+          }
+
           console.log('[CHAT] Adding new message to UI:', data.id, data.content?.slice(0, 50));
           return [...prev, data];
         });
@@ -159,7 +174,7 @@ const ChatInterface = ({ conversation, onBack }) => {
       const messageData = conversation.type === 'ticket'
         ? {
             content: newMessage.trim(),
-            ticket_id: conversation.ticket_id,
+            ticket_id: typeof conversation.ticket_id === 'object' ? conversation.ticket_id.id : conversation.ticket_id,
             author_id: currentUser.id
           }
         : {
@@ -171,13 +186,19 @@ const ChatInterface = ({ conversation, onBack }) => {
       console.log('[CHAT] Message data:', messageData);
 
       const sentMessage = conversation.type === 'ticket'
-        ? await sendTicketMessage(messageData)
+        ? await sendTicketMessage(messageData.ticket_id, messageData)
         : await sendConversationMessage(conversation.id, messageData);
 
       console.log('[CHAT] Message sent successfully:', sentMessage.id);
 
-      // Don't add optimistically - let real-time update handle it
-      // setMessages(prev => [...prev, sentMessage]);
+      // Optimistically add the message to UI immediately for better UX
+      const optimisticMessage = {
+        ...sentMessage,
+        id: `temp-${Date.now()}`, // Temporary ID to avoid conflicts
+        isOptimistic: true // Mark as optimistic
+      };
+      setMessages(prev => [...prev, optimisticMessage]);
+      
       setNewMessage('');
     } catch (err) {
       console.error('[CHAT] Error sending message:', err);
@@ -319,11 +340,16 @@ const ChatInterface = ({ conversation, onBack }) => {
               </span>
             </div>
             {dateMessages.map((message, index) => {
-              const isCurrentUser = message.sender_id === currentUser?.id;
+              const senderId = message.sender_id || message.author_id;
+              const isCurrentUser = senderId === currentUser?.id;
               const showAvatar = !isCurrentUser && (
                 index === 0 ||
-                dateMessages[index - 1].sender_id !== message.sender_id
+                (dateMessages[index - 1].sender_id || dateMessages[index - 1].author_id) !== senderId
               );
+
+              const senderName = isCurrentUser 
+                ? 'You' 
+                : (userMap.get(senderId) || 'Unknown');
 
               return (
                 <div
@@ -335,7 +361,7 @@ const ChatInterface = ({ conversation, onBack }) => {
                       {showAvatar && (
                         <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
                         <span className="text-xs font-medium text-gray-600">
-                          {(userMap.get(message.sender_id || message.author_id) || '?').charAt(0).toUpperCase()}
+                          {senderName.charAt(0).toUpperCase()}
                         </span>
                         </div>
                       )}
@@ -343,11 +369,9 @@ const ChatInterface = ({ conversation, onBack }) => {
                   )}
 
                   <div className={`max-w-full sm:max-w-xs lg:max-w-md ${isCurrentUser ? 'order-1' : 'order-2'}`}>
-                    {!isCurrentUser && showAvatar && (
-                      <div className="text-xs text-gray-500 mb-1 px-3">
-                        {userMap.get(message.sender_id || message.author_id) || 'Unknown'}
-                      </div>
-                    )}
+                    <div className={`text-xs text-gray-500 mb-1 px-3 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
+                      {senderName}
+                    </div>
 
                     <div
                       className={`px-3 py-2 rounded-lg ${
