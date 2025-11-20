@@ -9,9 +9,11 @@ const pageTitles = {
   '/': 'Dashboard',
   '/tickets': 'Tickets',
   '/chat': 'Chat',
+  '/notifications': 'Notifications',
   '/knowledge-base': 'Knowledge Base',
   '/reports': 'Reports',
   '/users': 'Users',
+  '/testing': 'Testing',
   '/settings': 'Settings',
 };
 
@@ -35,9 +37,11 @@ export default function Layout() {
     '/': 'Dashboard',
     '/tickets': 'Tickets',
     '/chat': 'Chat',
+    '/notifications': 'Notifications',
     '/knowledge-base': 'Knowledge Base',
     '/reports': 'Reports',
     '/users': 'Users',
+    '/testing': 'Testing',
     '/settings': 'Settings',
   };
 

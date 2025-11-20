@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import TicketModal from '../components/TicketModal';
 import TicketRow from '../components/TicketRow';
 import { Plus, Search } from 'lucide-react';
@@ -24,10 +25,11 @@ export default function Tickets() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [newComment, setNewComment] = useState({ content: '' });
   const [currentUser, setCurrentUser] = useState(null);
+  const [searchParams] = useSearchParams();
 
   // Use real-time hooks
   const { tickets, loading: ticketsLoading, loadTickets } = useRealtimeTickets();
-  const { comments, loadComments } = useRealtimeComments(viewTicket?.id);
+  const { comments, loading: commentsLoading, loadComments } = useRealtimeComments(viewTicket?.id);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,6 +48,17 @@ export default function Tickets() {
     };
     fetchData();
   }, []);
+
+  // Handle URL parameter for auto-opening ticket
+  useEffect(() => {
+    const ticketId = searchParams.get('ticket');
+    if (ticketId && tickets.length > 0) {
+      const ticketToOpen = tickets.find(ticket => ticket.id === ticketId || ticket.ticket_id === ticketId);
+      if (ticketToOpen) {
+        handleView(ticketToOpen);
+      }
+    }
+  }, [searchParams, tickets]);
 
   const fetchTickets = async () => {
     await loadTickets();
@@ -227,7 +240,7 @@ export default function Tickets() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 relative">
             <button
-              onClick={() => { setShowViewModal(false); setViewTicket(null); setComments([]); setNewComment({ content: '' }); }}
+              onClick={() => { setShowViewModal(false); setViewTicket(null); setNewComment({ content: '' }); }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             >
               ×

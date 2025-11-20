@@ -215,7 +215,6 @@ export default function TicketModal({ open, onClose, onSubmit, mode = 'create', 
                 <option value="Open">Open</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Resolved">Resolved</option>
-                <option value="Closed">Closed</option>
               </select>
             </div>
 

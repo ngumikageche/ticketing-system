@@ -63,13 +63,21 @@ def create_app():
     app.config.from_object('app.config.Config')
 
     # Initialize Socket.IO first
-    socketio.init_app(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
+    socketio.init_app(app, 
+                      cors_allowed_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "https://support.nextek.co.ke", "http://support.nextek.co.ke", "*"],
+                      logger=True, 
+                      engineio_logger=True)
     
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     # Add CORS for regular HTTP requests (Socket.IO handles its own CORS)
-    CORS(app, origins=["*"], supports_credentials=True)
+    CORS(app, 
+         origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "https://support.nextek.co.ke", "http://support.nextek.co.ke", "*"], 
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         expose_headers=["Access-Control-Allow-Origin"])
 
     # Register blueprints (import here to avoid circular imports)
     try:
@@ -83,6 +91,7 @@ def create_app():
         from .routes.docs import docs_bp
         from .routes.notifications import notifications_bp
         from .routes.conversations import conversations_bp
+        from .routes.testing import testing_bp
         app.register_blueprint(auth_bp, url_prefix='/api/auth')
         app.register_blueprint(tickets_bp, url_prefix='/api/tickets')
         app.register_blueprint(kb_bp, url_prefix='/api/kb')
@@ -93,6 +102,7 @@ def create_app():
         app.register_blueprint(docs_bp, url_prefix='')
         app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
         app.register_blueprint(conversations_bp, url_prefix='/api/conversations')
+        app.register_blueprint(testing_bp, url_prefix='/api/testing')
     except Exception:
         # Surface import / registration errors so they are visible in development
         logging.exception("Failed to import blueprints for app; blueprints won't be registered")

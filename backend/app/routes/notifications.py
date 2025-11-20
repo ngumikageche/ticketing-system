@@ -15,7 +15,7 @@ def list_notifications():
         user_id = uuid.UUID(identity)
     except ValueError:
         abort(401, 'invalid token')
-    notifications = Notification.query.filter_by(user_id=user_id).order_by(Notification.created_at.desc()).all()
+    notifications = Notification.active().filter_by(user_id=user_id).order_by(Notification.created_at.desc()).all()
     return jsonify([n.to_dict() for n in notifications])
 
 
@@ -33,6 +33,21 @@ def mark_as_read(id_):
     notification.is_read = True
     notification.save()
     return jsonify(notification.to_dict())
+
+
+@notifications_bp.route('/<id_>', methods=['DELETE'])
+@jwt_required()
+def delete_notification(id_):
+    identity = get_jwt_identity()
+    try:
+        user_id = uuid.UUID(identity)
+    except ValueError:
+        abort(401, 'invalid token')
+    notification = Notification.query.filter_by(id=id_, user_id=user_id).first()
+    if not notification:
+        abort(404, 'notification not found')
+    notification.delete(soft=True)
+    return '', 204
 
 
 # Webhook receiver endpoints

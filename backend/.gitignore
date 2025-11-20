@@ -53,7 +53,7 @@ htmlcov/
 instance/
 
 # Migrations (if you don't want to track generated migration files)
-migrations/
+#migrations/
 
 # Alembic config
 alembic.ini

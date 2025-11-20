@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { MessageCircle, Users, Ticket, Plus, Trash2 } from 'lucide-react';
-import { getConversations, getConversation, deleteConversation } from '../api/conversations.js';
+import { getConversations, getConversation, deleteConversation, getConversationMessages } from '../api/conversations.js';
 import { getCurrentUser } from '../api/users.js';
 import { useWebSocket } from '../contexts/WebSocketContext.jsx';
 import CreateConversationModal from './CreateConversationModal.jsx';
 
-const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
+const ConversationList = ({ onSelectConversation, selectedConversationId, initialConversationId }) => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,6 +13,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [conversationDetails, setConversationDetails] = useState({});
   const [deletingConversationId, setDeletingConversationId] = useState(null);
+  const [unreadCounts, setUnreadCounts] = useState({});
   const { socket } = useWebSocket();
 
   const fetchConversationDetails = async (conversationId) => {
@@ -25,6 +26,28 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
     } catch (err) {
       console.error('Failed to fetch conversation details:', err);
     }
+  };
+
+  const calculateUnreadCounts = async () => {
+    const counts = {};
+    for (const conversation of conversations) {
+      try {
+        let messages = [];
+        if (conversation.type === 'ticket') {
+          // For tickets, comments don't have read status tracking yet
+          counts[conversation.id] = 0;
+          continue;
+        } else {
+          messages = await getConversationMessages(conversation.id);
+        }
+        const unreadCount = messages.filter(msg => !msg.is_read && msg.sender_id !== currentUser?.id).length;
+        counts[conversation.id] = unreadCount;
+      } catch (err) {
+        console.error(`Failed to fetch messages for conversation ${conversation.id}:`, err);
+        counts[conversation.id] = 0;
+      }
+    }
+    setUnreadCounts(counts);
   };
 
   const handleDeleteConversation = async (conversationId) => {
@@ -51,6 +74,11 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
     }
   };
 
+  const handleSelectConversation = (conversation) => {
+    onSelectConversation(conversation);
+    // Unread counts will be updated via WebSocket when conversation is marked as read
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -69,9 +97,24 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
       } finally {
         setLoading(false);
       }
+
+      // Auto-select conversation if specified in URL
+      if (initialConversationId) {
+        const conversationToSelect = conversationsData.find(conv => conv.id === initialConversationId);
+        if (conversationToSelect) {
+          handleSelectConversation(conversationToSelect);
+        }
+      }
     };
     fetchData();
   }, []);
+
+  // Calculate unread counts when conversations or current user changes
+  useEffect(() => {
+    if (conversations.length > 0 && currentUser) {
+      calculateUnreadCounts();
+    }
+  }, [conversations, currentUser]);
 
   // Listen for real-time conversation updates
   useEffect(() => {
@@ -92,14 +135,28 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
           return [data, ...prev];
         }
       });
+      // Recalculate unread counts when conversation is updated (e.g., marked as read)
+      if (conversations.length > 0 && currentUser) {
+        calculateUnreadCounts();
+      }
     };
 
-    socket.on('conversation.updated', handleConversationUpdate);
+    const handleMessageUpdate = (payload) => {
+      const { data } = payload;
+      // Recalculate unread counts when new messages arrive
+      if (conversations.length > 0 && currentUser) {
+        calculateUnreadCounts();
+      }
+    };
+
+    socket.on('conversation.update', handleConversationUpdate);
+    socket.on('message.update', handleMessageUpdate);
 
     return () => {
-      socket.off('conversation.updated', handleConversationUpdate);
+      socket.off('conversation.update', handleConversationUpdate);
+      socket.off('message.update', handleMessageUpdate);
     };
-  }, [socket]);
+  }, [socket, conversations, currentUser]);
 
   const getConversationIcon = (type) => {
     switch (type) {
@@ -123,7 +180,14 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
       if (details && details.participants && currentUser) {
         const otherParticipant = details.participants.find(p => p.id !== currentUser.id);
         if (otherParticipant) {
-          return otherParticipant.name || otherParticipant.email || 'Unknown User';
+          return otherParticipant.name || otherParticipant.username || otherParticipant.email || 'Unknown User';
+        }
+      }
+      // If we don't have conversation details yet, try to get from conversation object itself
+      if (conversation.participants && currentUser) {
+        const otherParticipant = conversation.participants.find(p => p.id !== currentUser.id);
+        if (otherParticipant) {
+          return otherParticipant.name || otherParticipant.username || otherParticipant.email || 'Unknown User';
         }
       }
       return 'Direct Message';
@@ -164,7 +228,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
             {groupedConversations.direct.map(conversation => (
               <div key={conversation.id} className="relative group">
                 <button
-                  onClick={() => onSelectConversation(conversation)}
+                  onClick={() => handleSelectConversation(conversation)}
                   className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
                     selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
                   }`}
@@ -174,9 +238,16 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
                       {getConversationIcon(conversation.type)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {getConversationDisplayName(conversation)}
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {getConversationDisplayName(conversation)}
+                        </p>
+                        {unreadCounts[conversation.id] > 0 && (
+                          <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">
+                            {unreadCounts[conversation.id] > 99 ? '99+' : unreadCounts[conversation.id]}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 truncate">
                         Last message preview...
                       </p>
@@ -218,9 +289,16 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
                       {getConversationIcon(conversation.type)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {getConversationDisplayName(conversation)}
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {getConversationDisplayName(conversation)}
+                        </p>
+                        {unreadCounts[conversation.id] > 0 && (
+                          <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">
+                            {unreadCounts[conversation.id] > 99 ? '99+' : unreadCounts[conversation.id]}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 truncate">
                         Last message preview...
                       </p>
@@ -252,7 +330,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
             {groupedConversations.ticket.map(conversation => (
               <div key={conversation.id} className="relative group">
                 <button
-                  onClick={() => onSelectConversation(conversation)}
+                  onClick={() => handleSelectConversation(conversation)}
                   className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
                     selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
                   }`}
@@ -262,9 +340,16 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
                       {getConversationIcon(conversation.type)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {getConversationDisplayName(conversation)}
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {getConversationDisplayName(conversation)}
+                        </p>
+                        {unreadCounts[conversation.id] > 0 && (
+                          <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">
+                            {unreadCounts[conversation.id] > 99 ? '99+' : unreadCounts[conversation.id]}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 truncate">
                         Last message preview...
                       </p>
@@ -302,10 +387,10 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
         onClose={() => setShowCreateModal(false)}
         onConversationCreated={(newConversation) => {
           setConversations(prev => [newConversation, ...prev]);
-          onSelectConversation(newConversation);
+          handleSelectConversation(newConversation);
         }}
         onExistingConversationFound={(existingConversation) => {
-          onSelectConversation(existingConversation);
+          handleSelectConversation(existingConversation);
         }}
       />
     </div>

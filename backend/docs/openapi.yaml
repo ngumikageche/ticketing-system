@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Support Ticketing System API
   version: 1.0.0
@@ -10,6 +10,7 @@ info:
     - **Multi-channel Messaging**: Support for direct messages, group conversations, and ticket-based discussions
     - **Threaded Replies**: Full support for nested message replies in both conversations and ticket comments
     - **Real-time Notifications**: Dual-channel notifications via webhooks and WebSocket/Socket.IO
+    - **Message Read Status**: WhatsApp-like read receipts with per-user message tracking
     - **Comprehensive Ticketing**: Full lifecycle management of support tickets with status tracking
     - **Knowledge Base**: Article management with tagging and search capabilities
     - **File Attachments**: Support for attaching files to tickets and messages
@@ -47,6 +48,7 @@ info:
     - **Users**: Created, deactivated
     - **Knowledge Base**: Articles created
     - **Attachments**: Added, updated, deleted
+    - **Testing**: Results (passed/failed) with ticket status updates
 
     ### Setting up Webhooks
 
@@ -523,6 +525,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Notification'
+  /api/notifications/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    delete:
+      tags: [notifications]
+      summary: Delete notification
+      description: Delete a notification (user can only delete their own notifications)
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Notification deleted
+        '403':
+          description: Forbidden - can only delete own notifications
+        '404':
+          description: Notification not found
 
   /api/notifications/webhooks/notifications:
     post:
@@ -861,17 +879,6 @@ paths:
   /api/conversations/{id_}:
     parameters:
       - $ref: '#/components/parameters/id'
-    delete:
-      tags: [conversations]
-      summary: Delete conversation
-      description: Delete a conversation (participants only)
-      responses:
-        '204':
-          description: Conversation deleted
-
-  /api/conversations/{id_}:
-    parameters:
-      - $ref: '#/components/parameters/id'
     get:
       tags: [conversations]
       summary: Get conversation details
@@ -885,13 +892,20 @@ paths:
                 $ref: '#/components/schemas/Conversation'
         '403':
           description: Not authorized to access this direct conversation
+    delete:
+      tags: [conversations]
+      summary: Delete conversation
+      description: Delete a conversation (participants only)
+      responses:
+        '204':
+          description: Conversation deleted
   /api/conversations/{id_}/messages:
     parameters:
       - $ref: '#/components/parameters/id'
     get:
       tags: [conversations]
       summary: Get messages in conversation
-      description: Retrieve all messages in a conversation, supporting threaded replies
+      description: Retrieve all messages in a conversation, supporting threaded replies. Each message includes an `is_read` field indicating if the current user has read it.
       responses:
         '200':
           description: List of messages
@@ -918,6 +932,108 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Message'
+  /api/conversations/{id_}/messages/{message_id}/read:
+    parameters:
+      - name: id_
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Conversation ID
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Message ID to mark as read
+    post:
+      tags: [conversations]
+      summary: Mark a single message as read
+      description: Mark a specific message as read for the current user. Only conversation participants can mark messages as read.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Message marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: marked as read
+        '403':
+          description: Not a participant in this conversation
+        '404':
+          description: Message or conversation not found
+  /api/conversations/{id_}/read:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [conversations]
+      summary: Mark entire conversation as read
+      description: Mark all unread messages in a conversation as read for the current user. Only conversation participants can mark messages as read.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Conversation marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: conversation marked as read
+                  messages_marked_read:
+                    type: integer
+                    description: Number of messages that were marked as read
+                    example: 5
+        '403':
+          description: Not a participant in this conversation
+        '404':
+          description: Conversation not found
+  /api/conversations/{id_}/read-up-to/{message_id}:
+    parameters:
+      - name: id_
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Conversation ID
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Message ID to mark messages up to (inclusive)
+    post:
+      tags: [conversations]
+      summary: Mark messages up to a point as read
+      description: Mark all messages in a conversation up to and including the specified message as read for the current user. Useful for "catching up" to a certain point in the conversation.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Messages marked as read up to specified point
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: messages marked as read up to specified message
+                  messages_marked_read:
+                    type: integer
+                    description: Number of messages that were marked as read
+                    example: 3
+        '403':
+          description: Not a participant in this conversation
+        '404':
+          description: Message or conversation not found
   /api/conversations/{id_}/participants:
     parameters:
       - $ref: '#/components/parameters/id'
@@ -940,6 +1056,112 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConversationParticipant'
+
+  /api/testing/:
+    get:
+      tags: [testing]
+      summary: List testing sessions
+      parameters:
+        - name: ticket_id
+          in: query
+          schema:
+            type: string
+          description: Filter by ticket ID
+        - name: user_id
+          in: query
+          schema:
+            type: string
+          description: Filter by user ID
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, passed, failed]
+          description: Filter by status
+      responses:
+        '200':
+          description: List of testing sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Testing'
+    post:
+      tags: [testing]
+      summary: Create a new testing session
+      description: Can only be created for tickets with status 'resolved'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewTesting'
+      responses:
+        '201':
+          description: Testing session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testing'
+        '400':
+          description: Invalid request or ticket not eligible for testing
+        '401':
+          description: Unauthorized
+
+  /api/testing/{id_}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [testing]
+      summary: Get testing session by ID
+      responses:
+        '200':
+          description: Testing session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testing'
+        '404':
+          description: Testing session not found
+    put:
+      tags: [testing]
+      summary: Update testing session
+      description: Only the tester can update their testing session. When status is set to 'passed' or 'failed', the associated ticket status is updated and the assignee is notified.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestingUpdate'
+      responses:
+        '200':
+          description: Testing session updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testing'
+        '403':
+          description: Forbidden - only tester can update
+        '404':
+          description: Testing session not found
+    delete:
+      tags: [testing]
+      summary: Delete testing session
+      description: Only the tester can delete their testing session
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Testing session deleted
+        '403':
+          description: Forbidden - only tester can delete
+        '404':
+          description: Testing session not found
 
 components:
   securitySchemes:
@@ -1068,6 +1290,7 @@ components:
         content: { type: string }
         message_type: { type: string, enum: [text, file, system], default: text }
         parent_message_id: { type: string, nullable: true, description: "ID of parent message for threaded replies" }
+        is_read: { type: boolean, description: "Whether the current user has read this message" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     NewMessage:
@@ -1122,7 +1345,7 @@ components:
             user_created, user_deactivated, ticket_assigned, kb_article_created,
             attachment_added, attachment_updated, attachment_deleted,
             message_on_ticket, message_deleted, message_on_conversation,
-            webhook_test
+            webhook_test, testing_result
           ]
         message: { type: string }
         related_id: { type: string, nullable: true }
@@ -1259,6 +1482,32 @@ components:
         created: { type: integer }
         resolved: { type: integer }
 
+    Testing:
+      type: object
+      properties:
+        id: { type: string }
+        ticket_id: { type: string }
+        user_id: { type: string }
+        status: { type: string, enum: [pending, in_progress, passed, failed] }
+        test_type: { type: string, enum: [manual, unit, integration] }
+        results: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NewTesting:
+      type: object
+      required: [ticket_id]
+      properties:
+        ticket_id: { type: string }
+        status: { type: string, enum: [pending, in_progress, passed, failed] }
+        test_type: { type: string, enum: [manual, unit, integration] }
+        results: { type: string }
+    TestingUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [pending, in_progress, passed, failed] }
+        test_type: { type: string, enum: [manual, unit, integration] }
+        results: { type: string }
+
     WebhookPayload:
       type: object
       required: [event, notification]
@@ -1279,7 +1528,7 @@ components:
                 user_created, user_deactivated, ticket_assigned, kb_article_created,
                 attachment_added, attachment_updated, attachment_deleted,
                 message_on_ticket, message_deleted, message_on_conversation,
-                webhook_test
+                webhook_test, testing_result
               ]
             message:
               type: string
@@ -1315,3 +1564,5 @@ tags:
     description: Webhook configuration and receiver endpoints
   - name: dashboard
     description: Reporting and analytics endpoints
+  - name: testing
+    description: Testing and quality assurance endpoints

@@ -21,6 +21,7 @@ class Ticket(BaseModel):
     comments = db.relationship('Comment', back_populates='ticket', cascade='all, delete-orphan')
     attachments = db.relationship('Attachment', back_populates='ticket', cascade='all, delete-orphan')
     conversation = db.relationship('Conversation', back_populates='ticket', uselist=False)
+    testing = db.relationship('Testing', back_populates='ticket', cascade='all, delete-orphan')
 
     __table_args__ = (
         db.Index('ix_tickets_status', 'status'),

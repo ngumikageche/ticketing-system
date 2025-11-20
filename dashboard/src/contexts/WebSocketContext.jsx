@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import io from 'socket.io-client';
 import { getToken } from '../api/auth.js';
 import { processWebhookPayload, getNotifications, markNotificationAsRead as markNotificationAsReadAPI } from '../api/notifications.js';
@@ -22,20 +22,20 @@ export const WebSocketProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [pollingInterval, setPollingInterval] = useState(null);
 
-  // Polling fallback function
-  const pollNotifications = async () => {
+  // Polling fallback function - use currentUser from state
+  const pollNotifications = useCallback(async () => {
     try {
       const data = await getNotifications();
       // Filter to ensure only current user's notifications (API should do this, but double-check)
-      const filteredData = currentUser 
+      const filteredData = currentUser
         ? data.filter(n => n.user_id === currentUser.id)
         : data;
       setNotifications(filteredData);
-      console.log('Polled notifications for user:', currentUser?.email, filteredData.length, 'notifications');
+      console.log('Polled notifications for user:', currentUser?.email || 'undefined', filteredData.length, 'notifications');
     } catch (error) {
       console.error('Failed to poll notifications:', error);
     }
-  };
+  }, [currentUser]);
 
   useEffect(() => {
     const token = getToken();
@@ -75,7 +75,7 @@ export const WebSocketProvider = ({ children }) => {
 
     // Connection events
     newSocket.on('connect', () => {
-      console.log('Connected to WebSocket server');
+      console.log('[WEBSOCKET] Connected to WebSocket server');
       setIsConnected(true);
       
       // Clear polling when WebSocket connects
@@ -85,6 +85,7 @@ export const WebSocketProvider = ({ children }) => {
       }
 
       // Join relevant rooms for targeted updates
+      console.log('[WEBSOCKET] Joining rooms: tickets, comments, users, kb, attachments, messages');
       newSocket.emit('join', { room: 'tickets' });
       newSocket.emit('join', { room: 'comments' });
       newSocket.emit('join', { room: 'users' });
@@ -94,7 +95,7 @@ export const WebSocketProvider = ({ children }) => {
     });
 
     newSocket.on('disconnect', () => {
-      console.log('Disconnected from WebSocket server, falling back to polling');
+      console.log('[WEBSOCKET] Disconnected from WebSocket server, falling back to polling');
       setIsConnected(false);
       
       // Start polling as fallback
@@ -156,7 +157,7 @@ export const WebSocketProvider = ({ children }) => {
     });
 
     // Entity-specific update events
-    newSocket.on('ticket.updated', (payload) => {
+    newSocket.on('ticket.update', (payload) => {
       const { data } = payload;
       console.log('Ticket updated:', data);
       setRealtimeData(prev => ({
@@ -168,19 +169,7 @@ export const WebSocketProvider = ({ children }) => {
       }));
     });
 
-    newSocket.on('comment.created', (payload) => {
-      const { data } = payload;
-      console.log('Comment created:', data);
-      setRealtimeData(prev => ({
-        ...prev,
-        comment: {
-          ...prev.comment,
-          [data.id]: data
-        }
-      }));
-    });
-
-    newSocket.on('comment.updated', (payload) => {
+    newSocket.on('comment.update', (payload) => {
       const { data } = payload;
       console.log('Comment updated:', data);
       setRealtimeData(prev => ({
@@ -192,7 +181,8 @@ export const WebSocketProvider = ({ children }) => {
       }));
     });
 
-    newSocket.on('user.updated', (payload) => {
+    // Listen for user updates (backend emits 'user.update')
+    newSocket.on('user.update', (payload) => {
       const { data } = payload;
       console.log('User updated:', data);
       setRealtimeData(prev => ({
@@ -228,9 +218,11 @@ export const WebSocketProvider = ({ children }) => {
       }));
     });
 
-    newSocket.on('message.created', (payload) => {
+    // Message events: backend emits 'message.update' for created/updated messages
+    newSocket.on('message.update', (payload) => {
+      console.log('[WEBSOCKET] Received message.update event:', payload);
       const { data } = payload;
-      console.log('Message created:', data);
+      console.log('Message updated/created:', data);
       setRealtimeData(prev => ({
         ...prev,
         message: {
@@ -238,9 +230,27 @@ export const WebSocketProvider = ({ children }) => {
           [data.id]: data
         }
       }));
+
+      // Simple debug toast using the Notification API so you can verify
+      // messages arrive in other browsers without needing a refresh.
+      try {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          const preview = (data.content || '').slice(0, 120);
+          new Notification('New message', { body: preview });
+        } else if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+              const preview = (data.content || '').slice(0, 120);
+              new Notification('New message', { body: preview });
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Browser notifications not available:', err);
+      }
     });
 
-    newSocket.on('conversation.updated', (payload) => {
+    newSocket.on('conversation.update', (payload) => {
       const { data } = payload;
       console.log('Conversation updated:', data);
       setRealtimeData(prev => ({

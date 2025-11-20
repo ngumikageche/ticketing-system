@@ -177,19 +177,25 @@ export const useRealtimeComments = (ticketId = null) => {
   // Update comments with real-time data
   useEffect(() => {
     if (realtimeData.comment) {
+      console.log('[HOOK] useRealtimeComments: Processing realtime comment updates:', Object.keys(realtimeData.comment));
       setComments(prevComments => {
         const updated = [...prevComments];
         Object.values(realtimeData.comment).forEach(commentUpdate => {
+          console.log('[HOOK] Processing comment update:', commentUpdate.id, commentUpdate.content?.slice(0, 50));
           // Only update if this comment belongs to our ticket (if ticketId is specified)
           if (!ticketId || commentUpdate.ticket_id === ticketId) {
             const existingIndex = updated.findIndex(c => c.id === commentUpdate.id);
             if (existingIndex >= 0) {
               // Update existing comment
+              console.log('[HOOK] Updating existing comment at index', existingIndex);
               updated[existingIndex] = { ...updated[existingIndex], ...commentUpdate };
             } else {
               // Add new comment
+              console.log('[HOOK] Adding new comment to list');
               updated.push(commentUpdate);
             }
+          } else {
+            console.log('[HOOK] Comment does not belong to current ticket, skipping');
           }
         });
         return updated;

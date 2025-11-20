@@ -58,3 +58,21 @@ export const getCurrentUser = async () => {
   if (!response.ok) throw new Error('Failed to fetch current user');
   return response.json();
 };
+
+export const setWebhookUrl = async (webhookUrl) => {
+  const response = await fetch(`${API_BASE}/users/me/webhook`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ webhook_url: webhookUrl }),
+  });
+  if (!response.ok) throw new Error('Failed to set webhook URL');
+  return response.json();
+};
+
+export const getWebhookUrl = async () => {
+  const response = await fetch(`${API_BASE}/users/me/webhook`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to get webhook URL');
+  return response.json();
+};

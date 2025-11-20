@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, abort
 from app.models.conversation import Conversation
 from app.models.conversation_participant import ConversationParticipant
 from app.models.message import Message
+from app.models.message_read_status import MessageReadStatus
 from app.models.user import User
 from app.models.ticket import Ticket
 from app.hooks import send_conversation_created, send_message_created, send_message_deleted
@@ -51,7 +52,18 @@ def list_conversations():
         (Conversation.type != 'direct') | (Conversation.id.in_(participant_conv_ids))
     ).all()
 
-    return jsonify([c.to_dict() for c in conversations])
+    result = []
+    for c in conversations:
+        conv_dict = c.to_dict()
+        if c.type == 'direct':
+            # For direct conversations, set title to the other participant's name
+            other_participants = [p for p in c.participants if str(p.user_id) != str(current_user_id)]
+            if other_participants:
+                other_user = other_participants[0].user
+                conv_dict['title'] = other_user.name or other_user.email
+        result.append(conv_dict)
+
+    return jsonify(result)
 
 
 @conversations_bp.route('/<id_>', methods=['GET'])
@@ -73,7 +85,15 @@ def get_conversation(id_):
             abort(403, 'not a participant in this direct conversation')
     
     # For group and ticket conversations, allow access to all authenticated users
-    return jsonify(conv.to_dict())
+    conv_dict = conv.to_dict()
+    if conv.type == 'direct':
+        # For direct conversations, set title to the other participant's name
+        other_participants = [p for p in conv.participants if str(p.user_id) != str(current_user_id)]
+        if other_participants:
+            other_user = other_participants[0].user
+            conv_dict['title'] = other_user.name or other_user.email
+
+    return jsonify(conv_dict)
 
 
 @conversations_bp.route('/', methods=['POST'])
@@ -117,7 +137,14 @@ def create_conversation():
             participant_ids = {p.user_id for p in participants}
             if participant_ids == {created_by_id, recipient_id}:
                 # Return existing conversation
-                return jsonify(existing_direct.to_dict()), 200
+                conv_dict = existing_direct.to_dict()
+                if existing_direct.type == 'direct':
+                    # For direct conversations, set title to the other participant's name
+                    other_participants = [p for p in existing_direct.participants if str(p.user_id) != str(created_by_id)]
+                    if other_participants:
+                        other_user = other_participants[0].user
+                        conv_dict['title'] = other_user.name or other_user.email
+                return jsonify(conv_dict), 200
 
     conv = Conversation(
         type=conv_type,
@@ -166,7 +193,15 @@ def create_conversation():
         import logging
         logging.exception('error running conversation.created hooks')
 
-    return jsonify(conv.to_dict()), 201
+    conv_dict = conv.to_dict()
+    if conv.type == 'direct':
+        # For direct conversations, set title to the other participant's name
+        other_participants = [p for p in conv.participants if str(p.user_id) != str(created_by_id)]
+        if other_participants:
+            other_user = other_participants[0].user
+            conv_dict['title'] = other_user.name or other_user.email
+
+    return jsonify(conv_dict), 201
 
 
 @conversations_bp.route('/<id_>/messages', methods=['GET'])
@@ -187,7 +222,23 @@ def get_messages(id_):
         abort(403, 'not a participant in this conversation')
     
     messages = Message.active().filter_by(conversation_id=conv.id).order_by(Message.created_at).all()
-    return jsonify([m.to_dict() for m in messages])
+    
+    # Get read status for current user
+    read_message_ids = set(
+        db.session.query(MessageReadStatus.message_id)
+        .filter_by(user_id=current_user_id)
+        .filter(MessageReadStatus.message_id.in_([m.id for m in messages]))
+        .all()
+    )
+    read_message_ids = {str(mid) for (mid,) in read_message_ids}
+    
+    result = []
+    for m in messages:
+        msg_dict = m.to_dict()
+        msg_dict['is_read'] = str(m.id) in read_message_ids
+        result.append(msg_dict)
+    
+    return jsonify(result)
 
 
 @conversations_bp.route('/<id_>/messages', methods=['POST'])
@@ -232,6 +283,7 @@ def create_message(id_):
         parent_message_id=parent_message_id
     )
     m.save()
+    print(f"[MESSAGE] Created message {m.id} in conversation {conv.id} by user {sender_id}")
 
     # emit hook
     try:
@@ -243,9 +295,44 @@ def create_message(id_):
     return jsonify(m.to_dict()), 201
 
 
-@conversations_bp.route('/<conv_id>/participants', methods=['POST'])
+@conversations_bp.route('/<conv_id>/messages/<message_id>/read', methods=['POST'])
 @jwt_required_optional
-def add_participant(conv_id):
+def mark_message_read(conv_id, message_id):
+    conv = _get_or_404(Conversation, conv_id)
+    message = _get_or_404(Message, message_id)
+    
+    if str(message.conversation_id) != conv_id:
+        abort(400, 'message does not belong to this conversation')
+    
+    # Get current user from JWT token
+    identity = get_jwt_identity()
+    try:
+        current_user_id = uuid.UUID(identity)
+    except ValueError:
+        abort(401, 'invalid token')
+    
+    # Check if current user is a participant in this conversation
+    participant = ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=current_user_id).first()
+    if not participant:
+        abort(403, 'not a participant in this conversation')
+    
+    # Check if already read
+    from app.models.message_read_status import MessageReadStatus
+    existing = MessageReadStatus.query.filter_by(message_id=message_id, user_id=current_user_id).first()
+    if existing:
+        return jsonify({'status': 'already read'}), 200
+    
+    # Mark as read
+    read_status = MessageReadStatus(message_id=message_id, user_id=current_user_id)
+    read_status.save()
+    
+    return jsonify({'status': 'marked as read'}), 200
+
+
+@conversations_bp.route('/<conv_id>/read', methods=['POST'])
+@jwt_required_optional
+def mark_conversation_read(conv_id):
+    """Mark all messages in a conversation as read for the current user"""
     conv = _get_or_404(Conversation, conv_id)
     
     # Get current user from JWT token
@@ -256,24 +343,78 @@ def add_participant(conv_id):
         abort(401, 'invalid token')
     
     # Check if current user is a participant in this conversation
-    current_participant = ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=current_user_id).first()
-    if not current_participant:
+    participant = ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=current_user_id).first()
+    if not participant:
         abort(403, 'not a participant in this conversation')
     
-    data = request.get_json() or {}
-    user_id = data.get('user_id')
-    if not user_id:
-        abort(400, 'user_id required')
-    user = User.query.filter_by(id=user_id).first()
-    if not user:
-        abort(400, 'user not found')
-    # Check if already participant
-    existing = ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=user_id).first()
-    if existing:
-        abort(400, 'already participant')
-    p = ConversationParticipant(conversation_id=conv.id, user_id=user_id)
-    p.save()
-    return jsonify(p.to_dict()), 201
+    # Get all unread messages in this conversation for the current user
+    unread_messages = Message.active().filter_by(conversation_id=conv.id).filter(
+        ~Message.id.in_(
+            db.session.query(MessageReadStatus.message_id).filter_by(user_id=current_user_id)
+        )
+    ).all()
+    
+    # Mark all unread messages as read
+    read_statuses = []
+    for message in unread_messages:
+        read_status = MessageReadStatus(message_id=message.id, user_id=current_user_id)
+        read_statuses.append(read_status)
+    
+    if read_statuses:
+        db.session.bulk_save_objects(read_statuses)
+        db.session.commit()
+    
+    return jsonify({
+        'status': 'conversation marked as read',
+        'messages_marked_read': len(read_statuses)
+    }), 200
+
+
+@conversations_bp.route('/<conv_id>/read-up-to/<message_id>', methods=['POST'])
+@jwt_required_optional
+def mark_messages_read_up_to(conv_id, message_id):
+    """Mark all messages up to and including the specified message as read"""
+    conv = _get_or_404(Conversation, conv_id)
+    message = _get_or_404(Message, message_id)
+    
+    if str(message.conversation_id) != conv_id:
+        abort(400, 'message does not belong to this conversation')
+    
+    # Get current user from JWT token
+    identity = get_jwt_identity()
+    try:
+        current_user_id = uuid.UUID(identity)
+    except ValueError:
+        abort(401, 'invalid token')
+    
+    # Check if current user is a participant in this conversation
+    participant = ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=current_user_id).first()
+    if not participant:
+        abort(403, 'not a participant in this conversation')
+    
+    # Get all unread messages in this conversation that were sent before or at the same time as the specified message
+    unread_messages = Message.active().filter_by(conversation_id=conv.id).filter(
+        Message.created_at <= message.created_at
+    ).filter(
+        ~Message.id.in_(
+            db.session.query(MessageReadStatus.message_id).filter_by(user_id=current_user_id)
+        )
+    ).all()
+    
+    # Mark all these messages as read
+    read_statuses = []
+    for msg in unread_messages:
+        read_status = MessageReadStatus(message_id=msg.id, user_id=current_user_id)
+        read_statuses.append(read_status)
+    
+    if read_statuses:
+        db.session.bulk_save_objects(read_statuses)
+        db.session.commit()
+    
+    return jsonify({
+        'status': 'messages marked as read up to specified message',
+        'messages_marked_read': len(read_statuses)
+    }), 200
 
 
 @conversations_bp.route('/<id_>', methods=['DELETE'])
