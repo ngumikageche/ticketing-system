@@ -94,6 +94,7 @@ def get_ticket(id_):
 
 
 @tickets_bp.route('/<id_>', methods=['PUT', 'PATCH'])
+@jwt_required_optional
 def update_ticket(id_):
     t = _get_or_404(Ticket, id_)
     data = request.get_json() or {}
@@ -119,6 +120,7 @@ def update_ticket(id_):
 
 
 @tickets_bp.route('/<id_>', methods=['DELETE'])
+@jwt_required_optional
 def delete_ticket(id_):
     t = _get_or_404(Ticket, id_)
     t.delete(soft=True)
