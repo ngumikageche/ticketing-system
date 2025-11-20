@@ -25,6 +25,7 @@ except Exception:
 try:
     from flask_socketio import SocketIO, join_room, leave_room
     from flask import request
+    import os
 except Exception:
     class _NoOpSocketIO:
         def __init__(self, *args, **kwargs):
@@ -50,23 +51,31 @@ except Exception:
     join_room = lambda *args, **kwargs: None
     leave_room = lambda *args, **kwargs: None
     from flask import request
+    os = None
 
 # Import BaseModel's db
 from app.models.base import db
 
 migrate = Migrate()
 jwt = JWTManager()
-socketio = SocketIO(cors_allowed_origins="*", logger=True, engineio_logger=True)
+
+# Only initialize SocketIO if we're not running database commands
+# This prevents eventlet monkey patching issues during flask db commands
+if os and 'db' not in os.sys.argv:
+    socketio = SocketIO(cors_allowed_origins="*", logger=True, engineio_logger=True)
+else:
+    socketio = _NoOpSocketIO()
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
 
-    # Initialize Socket.IO first
-    socketio.init_app(app, 
-                      cors_allowed_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "https://support.nextek.co.ke", "http://support.nextek.co.ke", "*"],
-                      logger=True, 
-                      engineio_logger=True)
+    # Only initialize Socket.IO if we're running the server (not during db commands)
+    if hasattr(socketio, 'init_app') and callable(getattr(socketio, 'init_app', None)):
+        socketio.init_app(app, 
+                          cors_allowed_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "https://support.nextek.co.ke", "http://support.nextek.co.ke", "*"],
+                          logger=True, 
+                          engineio_logger=True)
     
     db.init_app(app)
     migrate.init_app(app, db)
@@ -110,8 +119,8 @@ def create_app():
         if app.config.get('ENV') == 'development' or app.debug:
             raise
 
-    # Socket.IO event handlers - only register if socketio is available
-    if hasattr(socketio, 'on'):
+    # Socket.IO event handlers - only register if socketio is available and properly initialized
+    if hasattr(socketio, 'on') and hasattr(socketio, 'emit'):
         @socketio.on('connect')
         def handle_connect():
             print('Client connected')
