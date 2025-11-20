@@ -62,11 +62,25 @@ from app.models.base import db
 
 migrate = Migrate()
 jwt = JWTManager()
+# Central list of allowed origins used by both HTTP CORS (Flask-CORS)
+# and Socket.IO (engineio). Keep this list in one place to ensure they
+# always match. Avoid using "*" when supports_credentials=True.
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "https://support.nextek.co.ke",
+    "http://support.nextek.co.ke",
+    "https://sapi.nextek.co.ke",
+    "http://sapi.nextek.co.ke",
+]
 
 # Only initialize SocketIO if we're not running database commands and SocketIO is available
-# This prevents eventlet monkey patching issues during flask db commands
+# This prevents eventlet/asyncio monkey patching issues during `flask db` commands.
+# Configure Socket.IO to use the same ALLOWED_ORIGINS used by Flask-CORS so that
+# WebSocket upgrade/preflight checks and HTTP requests use identical origin rules.
 if SOCKETIO_AVAILABLE and os and 'db' not in os.sys.argv:
-    socketio = SocketIO(cors_allowed_origins="*", logger=True, engineio_logger=True)
+    socketio = SocketIO(cors_allowed_origins=ALLOWED_ORIGINS, logger=True, engineio_logger=True)
 else:
     socketio = _NoOpSocketIO()
 
@@ -76,41 +90,35 @@ def create_app():
 
     # Only initialize Socket.IO if we're running the server (not during db commands)
     if hasattr(socketio, 'init_app') and callable(getattr(socketio, 'init_app', None)):
-        # Be explicit about allowed origins. Avoid using "*" when supporting credentials.
-        socketio.init_app(app, 
-                          cors_allowed_origins=[
-                              "http://localhost:5173",
-                              "http://localhost:3000",
-                              "http://localhost:8080",
-                              "https://support.nextek.co.ke",
-                              "http://support.nextek.co.ke",
-                              "https://sapi.nextek.co.ke",
-                              "http://sapi.nextek.co.ke",
-                          ],
-                          logger=True, 
+        # Ensure the Socket.IO instance is explicitly attached to the Flask app
+        # and that it uses the same allowed origins as HTTP CORS above. This
+        # keeps WebSocket handshake CORS and regular HTTP CORS in sync.
+        socketio.init_app(app,
+                          cors_allowed_origins=ALLOWED_ORIGINS,
+                          logger=True,
                           engineio_logger=True)
     
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    # Add CORS for regular HTTP requests (Socket.IO handles its own CORS)
-    # Explicit CORS origins: include local dev origins and production hosts (support + sapi)
-    CORS(app, 
-         origins=[
-             "http://localhost:5173",
-             "http://localhost:3000",
-             "http://localhost:8080",
-             "https://support.nextek.co.ke",
-             "http://support.nextek.co.ke",
-             "https://sapi.nextek.co.ke",
-             "http://sapi.nextek.co.ke",
-         ], 
+
+    # Configure HTTP CORS for the Flask application. Flask-CORS will add the
+    # appropriate Access-Control-* headers to responses and automatically
+    # handle OPTIONS preflight responses. We rely on Flask-CORS instead of
+    # manually mutating response headers to avoid duplicate header values.
+    # See ALLOWED_ORIGINS above for the canonical list shared with Socket.IO.
+    CORS(app,
+         origins=ALLOWED_ORIGINS,
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-         expose_headers=["Access-Control-Allow-Origin"])
+         expose_headers=["Access-Control-Allow-Origin"],
+         automatic_options=True)
 
-    # Add CORS debugging
+    # Add CORS debugging: lightweight logging for preflight and cross-origin
+    # requests. This does not modify response headers; Flask-CORS is responsible
+    # for adding CORS headers. Keep the logs to help diagnose failing preflights
+    # after infrastructure changes (e.g., nginx config).
     @app.before_request
     def log_cors_requests():
         if request.method == 'OPTIONS':
@@ -118,36 +126,6 @@ def create_app():
             app.logger.info(f"Request headers: {dict(request.headers)}")
         elif 'Origin' in request.headers:
             app.logger.info(f"CORS request: {request.method} {request.path} from {request.headers.get('Origin', 'unknown')}")
-
-    # Explicitly ensure CORS headers are added to ALL responses.
-    # This is a fallback in cases where Flask-CORS isn't present or a middleware short-circuits
-    # (for example when an authentication decorator returns a 401/403 before a route handler).
-    # We check the Origin header and only set the headers for allowed origins to avoid
-    # inadvertently exposing the API.
-    @app.after_request
-    def add_cors_headers(response):
-        origin = request.headers.get('Origin')
-        allowed_origins = [
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "http://localhost:8080",
-            "https://support.nextek.co.ke",
-            "http://support.nextek.co.ke",
-            "https://sapi.nextek.co.ke",
-            "http://sapi.nextek.co.ke",
-        ]
-
-        # Add headers only for trusted origins
-        if origin in allowed_origins:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            # Allow cookies/credentials (frontend requests may be authorized via cookies or headers)
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
-            response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
-            # If the client is expecting this header in the response, include it too
-            response.headers['Access-Control-Expose-Headers'] = 'Access-Control-Allow-Origin'
-
-        return response
 
     # Register blueprints (import here to avoid circular imports)
     try:
