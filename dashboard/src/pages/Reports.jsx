@@ -2,14 +2,6 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getDashboard } from '../api/dashboard.js';
 
-const data = [
-  { month: 'Jan', tickets: 120 },
-  { month: 'Feb', tickets: 180 },
-  { month: 'Mar', tickets: 150 },
-  { month: 'Apr', tickets: 200 },
-  { month: 'May', tickets: 165 },
-];
-
 export default function Reports() {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,15 +24,20 @@ export default function Reports() {
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
+  // Derived stats - display as N/A when not present
   const stats = dashboardData ? [
-    { label: 'Total Tickets', value: dashboardData.totalTickets || '815' },
-    { label: 'Resolved', value: dashboardData.resolvedTickets || '720' },
-    { label: 'Avg. Response', value: dashboardData.avgResponse || '28m' }
+    { label: 'Total Tickets', value: dashboardData.totalTickets ?? 'N/A' },
+    { label: 'Resolved', value: dashboardData.resolvedTickets ?? 'N/A' },
+    { label: 'Avg. Response', value: dashboardData.avgResponse ?? 'N/A' }
   ] : [
-    { label: 'Total Tickets', value: '815' },
-    { label: 'Resolved', value: '720' },
-    { label: 'Avg. Response', value: '28m' }
+    { label: 'Total Tickets', value: 'N/A' },
+    { label: 'Resolved', value: 'N/A' },
+    { label: 'Avg. Response', value: 'N/A' }
   ];
+
+  // Chart data comes from the API's `monthlyData` field. If it's missing or
+  // empty, show a short message instead of a hardcoded chart.
+  const chartData = (dashboardData && Array.isArray(dashboardData.monthlyData)) ? dashboardData.monthlyData : [];
 
   return (
     <div className="space-y-6">
@@ -55,15 +52,19 @@ export default function Reports() {
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
         <h3 className="text-lg font-medium mb-4">Tickets by Month</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="tickets" fill="#3b82f6" />
-          </BarChart>
-        </ResponsiveContainer>
+        {chartData.length === 0 ? (
+          <div className="text-sm text-gray-500 py-16 text-center">No monthly ticket data available.</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="tickets" fill="#3b82f6" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );

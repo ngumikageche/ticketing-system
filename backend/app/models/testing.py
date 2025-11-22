@@ -16,6 +16,8 @@ class Testing(BaseModel):
     # Relationships
     ticket = db.relationship('Ticket', back_populates='testing')
     tester = db.relationship('User', back_populates='testing_sessions')
+    # Media attachments for this testing session
+    media = db.relationship('Media', back_populates='testing', cascade='all, delete-orphan')
 
     __table_args__ = (
         db.Index('ix_testing_status', 'status'),

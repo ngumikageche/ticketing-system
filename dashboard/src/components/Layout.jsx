@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
-import { getToken } from '../api/auth.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -22,12 +22,12 @@ export default function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const { currentUser, loading } = useAuth();
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!loading && !currentUser) {
       navigate('/login');
     }
-  }, [navigate]);
+  }, [navigate, loading, currentUser]);
 
   const currentPath = location.pathname;
   const title = pageTitles[currentPath] || 'Dashboard';

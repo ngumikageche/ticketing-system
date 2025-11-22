@@ -1,10 +1,10 @@
-from app import create_app
+from app import create_app, socketio
 from app.models.base import db
 from flask_migrate import Migrate
 from flask import Flask
 import os
 
-app, socketio = create_app()
+app = create_app()
 migrate = Migrate(app, db)
 
 @app.cli.command()

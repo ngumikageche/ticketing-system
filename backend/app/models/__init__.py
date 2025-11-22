@@ -11,6 +11,7 @@ from .message import *  # noqa: F401,F403
 from .conversation import *  # noqa: F401,F403
 from .conversation_participant import *  # noqa: F401,F403
 from .attachment import *  # noqa: F401,F403
+from .media import *  # noqa: F401,F403
 from .kb import *  # noqa: F401,F403
 from .testing import *  # noqa: F401,F403
 from .message_read_status import *  # noqa: F401,F403

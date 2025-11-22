@@ -1,7 +1,16 @@
-from flask import Blueprint, request, jsonify, abort
+from flask import Blueprint, request, jsonify, abort, make_response
+from flask import current_app, redirect
 from app.models.user import User
 from app.models.base import db
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    jwt_required,
+    get_jwt_identity,
+    set_access_cookies,
+    set_refresh_cookies,
+    unset_jwt_cookies,
+)
 import datetime
 import uuid
 
@@ -97,12 +106,23 @@ def signup():
     
     user.save()
     
-    # Create access token
+    # Create access and refresh tokens and set them in httpOnly cookies
     access = create_access_token(identity=str(user.id), expires_delta=datetime.timedelta(hours=1))
-    return jsonify({
-        'user': user.to_dict(),
-        'access_token': access
-    }), 201
+    refresh = create_refresh_token(identity=str(user.id), expires_delta=datetime.timedelta(days=30))
+    body = {'user': user.to_dict()}
+    # For non-production environments, also return tokens in JSON for dev/test tools and localStorage fallback.
+    if current_app.config.get('ENV') != 'production':
+        body['access_token'] = access
+        body['refresh_token'] = refresh
+    resp = make_response(jsonify(body), 201)
+    set_access_cookies(resp, access)
+    set_refresh_cookies(resp, refresh)
+    # If this was a browser navigation (text/html), redirect to the frontend signin page
+    accept = request.headers.get('Accept', '')
+    frontend = current_app.config.get('FRONTEND_URL')
+    if 'text/html' in accept and frontend:
+        return redirect(f"{frontend.rstrip('/')}/signin?next={request.url}", 302)
+    return resp
 
 
 @auth_bp.route('/security-questions', methods=['GET'])
@@ -122,9 +142,43 @@ def login():
     u = User.active().filter_by(email=data['email']).first()
     if not u or not u.check_password(data['password']):
         abort(401, 'invalid credentials')
-    # Create an access token using the user's id as the identity
+    # Create access and refresh tokens and set as httpOnly cookies
     access = create_access_token(identity=str(u.id), expires_delta=datetime.timedelta(hours=1))
-    return jsonify(access_token=access), 200
+    refresh = create_refresh_token(identity=str(u.id), expires_delta=datetime.timedelta(days=30))
+    body = {'user': u.to_dict()}
+    if current_app.config.get('ENV') != 'production':
+        body['access_token'] = access
+        body['refresh_token'] = refresh
+    resp = make_response(jsonify(body), 200)
+    set_access_cookies(resp, access)
+    set_refresh_cookies(resp, refresh)
+    # If this was a browser navigation (text/html), redirect to the frontend signin page
+    accept = request.headers.get('Accept', '')
+    frontend = current_app.config.get('FRONTEND_URL')
+    if 'text/html' in accept and frontend:
+        return redirect(f"{frontend.rstrip('/')}/signin?next={request.url}", 302)
+    return resp
+
+
+@auth_bp.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh_access():
+    identity = get_jwt_identity()
+    new_access = create_access_token(identity=str(identity), expires_delta=datetime.timedelta(hours=1))
+    # In non-production, return new access token so client can keep localStorage fallback in sync
+    body = {'msg': 'access token refreshed'}
+    if current_app.config.get('ENV') != 'production':
+        body['access_token'] = new_access
+    resp = jsonify(body)
+    set_access_cookies(resp, new_access)
+    return resp, 200
+
+
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    resp = jsonify({'msg': 'logout successful'})
+    unset_jwt_cookies(resp)
+    return resp, 200
 
 
 @auth_bp.route('/me', methods=['GET'])

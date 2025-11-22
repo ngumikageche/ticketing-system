@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import io from 'socket.io-client';
-import { getToken } from '../api/auth.js';
 import { processWebhookPayload, getNotifications, markNotificationAsRead as markNotificationAsReadAPI } from '../api/notifications.js';
 import { getCurrentUser } from '../api/users.js';
 
@@ -38,9 +37,8 @@ export const WebSocketProvider = ({ children }) => {
   }, [currentUser]);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
-
+    let newSocket = null;
+    let connectionTimeout = null;
     // Load initial notifications and current user
     const loadInitialData = async () => {
       try {
@@ -58,7 +56,12 @@ export const WebSocketProvider = ({ children }) => {
       }
     };
 
-    loadInitialData();
+    // Load data and then attempt WebSocket connection if we have a logged-in user
+  (async () => {
+      await loadInitialData();
+      // After loading user/notifications, try to connect to WebSocket only if user is logged in
+      const user = await getCurrentUser().catch(() => null);
+      if (!user) return;
 
     // Try to connect to WebSocket server (skip in production if not configured)
     const isProduction = import.meta.env.PROD;
@@ -75,17 +78,15 @@ export const WebSocketProvider = ({ children }) => {
       return;
     }
 
-    const newSocket = io(wsUrl, {
-      auth: {
-        token: token
-      },
+  newSocket = io(wsUrl, {
+      withCredentials: true,
       transports: ['websocket', 'polling'],
       timeout: 5000, // 5 second timeout
       reconnection: true,
       reconnectionAttempts: 3
     });
 
-    let connectionTimeout;
+  // connectionTimeout will be set below
 
     // Connection events
     newSocket.on('connect', () => {
@@ -120,7 +121,7 @@ export const WebSocketProvider = ({ children }) => {
     });
 
     // Connection timeout - fallback to polling
-    connectionTimeout = setTimeout(() => {
+  connectionTimeout = setTimeout(() => {
       if (!isConnected) {
         console.log('WebSocket connection timeout, using polling fallback');
         setIsConnected(false);
@@ -282,10 +283,12 @@ export const WebSocketProvider = ({ children }) => {
     });
 
     setSocket(newSocket);
+    // Close the IIFE and return cleanup
+    })();
 
     return () => {
-      clearTimeout(connectionTimeout);
-      newSocket.close();
+      if (connectionTimeout) clearTimeout(connectionTimeout);
+      if (newSocket) newSocket.close();
       if (pollingInterval) {
         clearInterval(pollingInterval);
       }
@@ -294,15 +297,14 @@ export const WebSocketProvider = ({ children }) => {
 
   // Initial polling setup (in case WebSocket never connects)
   useEffect(() => {
-    const token = getToken();
-    if (token && !isConnected && !pollingInterval) {
+    if (currentUser && !isConnected && !pollingInterval) {
       console.log('Setting up initial polling fallback');
       const interval = setInterval(pollNotifications, 30000);
       setPollingInterval(interval);
       
       return () => clearInterval(interval);
     }
-  }, [isConnected, pollingInterval]);
+  }, [isConnected, pollingInterval, currentUser]);
 
   const clearNotifications = () => {
     setNotifications([]);

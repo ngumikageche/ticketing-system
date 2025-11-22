@@ -20,6 +20,8 @@ class Ticket(BaseModel):
     assignee = db.relationship('User', foreign_keys=[assignee_id], back_populates='assigned_tickets')
     comments = db.relationship('Comment', back_populates='ticket', cascade='all, delete-orphan')
     attachments = db.relationship('Attachment', back_populates='ticket', cascade='all, delete-orphan')
+    # Media are generic files related to this ticket (Cloudinary-stored metadata kept on `Media`)
+    media = db.relationship('Media', back_populates='ticket', cascade='all, delete-orphan')
     conversation = db.relationship('Conversation', back_populates='ticket', uselist=False)
     testing = db.relationship('Testing', back_populates='ticket', cascade='all, delete-orphan')
 

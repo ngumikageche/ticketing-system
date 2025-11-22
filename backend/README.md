@@ -103,6 +103,11 @@ function markConversationRead(conversationId) {
    # Create first admin user
    python scripts/create_first_user.py
    ```
+  If you've added new models (e.g., the `Media` model for Cloudinary attachments), autogenerate a migration and upgrade the DB like:
+   ```bash
+   flask db migrate -m "add media model"
+   flask db upgrade
+   ```
 
 5. **Run the application**
    ```bash
@@ -134,6 +139,39 @@ Run the test suite:
 pytest tests/
 ```
 
+## ☁️ Cloudinary configuration (optional)
+
+If you plan to use Cloudinary for storing attachments and images, set the following environment variables in your environment or a `.env` file at the project root:
+
+```bash
+# Cloudinary credentials
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+# Optional preset/folder
+CLOUDINARY_UPLOAD_PRESET=your_upload_preset
+CLOUDINARY_UPLOAD_FOLDER=your_folder
+```
+
+The backend provides an endpoint for getting a signed upload payload for direct client uploads:
+
+```http
+GET /api/uploads/sign
+Headers: Authorization: Bearer <token>
+
+Response:
+{
+  "api_key": "...",
+  "timestamp": 1234567890,
+  "signature": "...",
+  "cloud_name": "...",
+  "upload_preset": "..."
+}
+```
+
+Use these values in the frontend to perform a client-side direct upload to Cloudinary and then register the resulting Cloudinary metadata against `/api/attachments/` (our `Media` model).
+
+
 Test webhook functionality:
 ```bash
 python test_webhooks.py
@@ -143,6 +181,14 @@ Test Socket.IO real-time features:
 ```bash
 python test_socketio.py
 ```
+
+Run the tests using the project's provided virtualenv (recommended):
+
+```bash
+./scripts/run_tests.sh
+```
+
+This helper activates `backend/venv` if present and runs `pytest` inside the venv.
 
 ## 📖 Documentation
 

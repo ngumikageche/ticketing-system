@@ -14,11 +14,18 @@ const ChatInterface = ({ conversation, onBack }) => {
   const [conversationDetails, setConversationDetails] = useState(null);
   const [userMap, setUserMap] = useState(new Map());
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const hasMountedRef = useRef(false);
+  const sortMessages = (list) => (Array.isArray(list) ? list.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) : []);
   const markedConversationsRef = useRef(new Set());
   const { socket, getRealtimeData } = useWebSocket();
 
   useEffect(() => {
     const fetchData = async () => {
+      // Reset the mount flag on conversation change so we treat the first
+      // load of a conversation as an initial render (auto scroll) even if
+      // another conversation was previously open.
+      hasMountedRef.current = false;
       if (!conversation) return;
 
       try {
@@ -40,7 +47,7 @@ const ChatInterface = ({ conversation, onBack }) => {
         const userData = results[1];
         const conversationData = results[2];
 
-        setMessages(messagesData);
+  setMessages(sortMessages(messagesData));
         setCurrentUser(userData);
         if (conversationData) {
           setConversationDetails(conversationData);
@@ -92,8 +99,10 @@ const ChatInterface = ({ conversation, onBack }) => {
   }, [messages, currentUser]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const behavior = hasMountedRef.current ? 'smooth' : 'auto';
+    scrollToBottom(behavior);
+    if (!hasMountedRef.current) hasMountedRef.current = true;
+  }, [messages, conversation]);
 
   // Listen for real-time message updates
   useEffect(() => {
@@ -129,11 +138,15 @@ const ChatInterface = ({ conversation, onBack }) => {
             console.log('[CHAT] Replacing optimistic message with real message:', data.id);
             const newMessages = [...prev];
             newMessages[optimisticIndex] = data;
+            // After replacing the optimistic entry, make sure we show the latest
+            setTimeout(() => scrollToBottom('smooth'), 0);
             return newMessages;
           }
 
           console.log('[CHAT] Adding new message to UI:', data.id, data.content?.slice(0, 50));
-          return [...prev, data];
+          const newList = [...prev, data];
+          setTimeout(() => scrollToBottom('smooth'), 0);
+          return newList;
         });
 
         // Fetch sender name if not already known
@@ -159,8 +172,18 @@ const ChatInterface = ({ conversation, onBack }) => {
     };
   }, [socket, conversation]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior = 'smooth') => {
+    const el = messagesEndRef.current;
+    if (el) {
+      try {
+        el.scrollIntoView({ behavior, block: 'end' });
+        return;
+      } catch (err) {
+        // fall through to container fallback
+      }
+    }
+    const container = messagesContainerRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
   };
 
   const handleSendMessage = async (e) => {
@@ -198,6 +221,8 @@ const ChatInterface = ({ conversation, onBack }) => {
         isOptimistic: true // Mark as optimistic
       };
       setMessages(prev => [...prev, optimisticMessage]);
+      // Ensure the UI scrolls to the latest message as soon as we add one
+      scrollToBottom('smooth');
       
       setNewMessage('');
     } catch (err) {
@@ -295,7 +320,7 @@ const ChatInterface = ({ conversation, onBack }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col bg-white overflow-hidden">
       {/* Chat Header - Always visible */}
       <div className="flex-shrink-0 p-2 sm:p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -330,8 +355,8 @@ const ChatInterface = ({ conversation, onBack }) => {
         </div>
       </div>
 
-      {/* Messages Area - Only this scrolls */}
-      <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4">
+  {/* Messages Area - Only this scrolls */}
+  <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4">
         {Object.entries(messageGroups).map(([date, dateMessages]) => (
           <div key={date}>
             <div className="text-center mb-4">
