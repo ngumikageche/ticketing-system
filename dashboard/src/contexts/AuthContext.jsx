@@ -3,6 +3,7 @@ import { login as apiLogin, logout as apiLogout, refreshAccess as apiRefresh, ge
 import { getCurrentUser as apiGetCurrentUser } from '../api/users.js';
 import fetchWithAuth from '../api/fetchWithAuth.js';
 import { registerAuthFailureHandler } from '../api/authEvents.js';
+import { navigateTo } from '../navigation.js';
 
 const AuthContext = createContext();
 
@@ -53,11 +54,10 @@ export const AuthProvider = ({ children }) => {
   // Register global auth failure handler (if fetchWithAuth returns 401 after refresh)
   useEffect(() => {
     const handleFailure = () => {
-      // Clear state and navigate to signin
+      // Clear state and navigate to login
       setCurrentUser(null);
-      // redirect to signin (SPA) - use location
-      const next = encodeURIComponent(window.location.href);
-      window.location.href = (import.meta.env.VITE_FRONTEND_URL || window.location.origin) + `/signin?next=${next}`;
+      // SPA navigation via helper - fallback to full navigation if not available
+      navigateTo('/login');
     };
     registerAuthFailureHandler(handleFailure);
   }, []);
@@ -86,8 +86,8 @@ export const AuthProvider = ({ children }) => {
       // ignore
     }
   setCurrentUser(null);
-    // redirect to signin
-    window.location.href = (import.meta.env.VITE_FRONTEND_URL || window.location.origin) + '/signin';
+    // redirect to login via SPA navigation helper
+    navigateTo('/login');
   }, []);
 
   const scheduleExpiryTimer = (expMs) => {

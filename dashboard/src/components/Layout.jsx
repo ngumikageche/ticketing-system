@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { setNavigate } from '../navigation.js';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -24,6 +25,9 @@ export default function Layout() {
 
   const { currentUser, loading } = useAuth();
   useEffect(() => {
+    // expose the router navigate function to other modules for SPA navigation
+    setNavigate(navigate);
+    
     if (!loading && !currentUser) {
       navigate('/login');
     }
