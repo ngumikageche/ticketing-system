@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { login } from '../api/auth.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -9,13 +9,15 @@ export default function Login() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  const auth = useAuth();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      await login(email, password);
+      await auth.login(email, password);
       navigate('/'); // Redirect to dashboard after successful login
     } catch (err) {
       setError(err.message || 'Login failed');
