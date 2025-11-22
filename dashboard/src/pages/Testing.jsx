@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { getTestingSessions, createTestingSession, updateTestingSession, deleteTestingSession } from '../api/testing.js';
+import { createAttachment } from '../api/attachments.js';
+import { uploadFileToCloudinary } from '../api/uploads.js';
 import { getTickets } from '../api/tickets.js';
+import { getCurrentUser } from '../api/users.js';
 
 export default function Testing() {
   const [testingSessions, setTestingSessions] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -17,6 +21,18 @@ export default function Testing() {
   useEffect(() => {
     loadData();
   }, [filters]);
+
+  useEffect(() => {
+    const loadCurrent = async () => {
+      try {
+        const cur = await getCurrentUser();
+        setCurrentUser(cur);
+      } catch (err) {
+        // not logged in or failed - ignore gracefully
+      }
+    };
+    loadCurrent();
+  }, []);
 
   const loadData = async () => {
     try {
@@ -36,9 +52,20 @@ export default function Testing() {
 
   const handleCreateSession = async (sessionData) => {
     try {
-      await createTestingSession(sessionData);
+      const created = await createTestingSession(sessionData);
       setShowCreateModal(false);
       loadData();
+      // If attachments included in sessionData, create them and associate with testing id
+      if (Array.isArray(sessionData.attachments) && sessionData.attachments.length > 0) {
+        for (const att of sessionData.attachments) {
+          await createAttachment({
+            filename: att.filename,
+            url: att.url,
+            uploaded_by: currentUser ? currentUser.id : undefined,
+            testing_id: created.id,
+          });
+        }
+      }
     } catch (error) {
       alert('Failed to create testing session: ' + error.message);
     }
@@ -46,9 +73,20 @@ export default function Testing() {
 
   const handleUpdateSession = async (id, updateData) => {
     try {
-      await updateTestingSession(id, updateData);
+      const updated = await updateTestingSession(id, updateData);
       setSelectedSession(null);
       loadData();
+      // Create attachments for testing session if provided
+      if (Array.isArray(updateData.attachments) && updateData.attachments.length > 0) {
+        for (const att of updateData.attachments) {
+          await createAttachment({
+            filename: att.filename,
+            url: att.url,
+            uploaded_by: currentUser ? currentUser.id : undefined,
+            testing_id: updated.id,
+          });
+        }
+      }
     } catch (error) {
       alert('Failed to update testing session: ' + error.message);
     }
@@ -232,6 +270,11 @@ function CreateTestingModal({ tickets, onClose, onSubmit }) {
     test_type: 'manual',
     results: ''
   });
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentFilename, setAttachmentFilename] = useState('');
+  const [attachmentUrl, setAttachmentUrl] = useState('');
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [attachmentType, setAttachmentType] = useState('document');
 
   // Filter tickets to only show resolved ones
   const eligibleTickets = tickets.filter(ticket => ticket.status === 'Resolved');
@@ -242,8 +285,38 @@ function CreateTestingModal({ tickets, onClose, onSubmit }) {
       alert('Please select a ticket');
       return;
     }
-    onSubmit(form);
+    const payload = { ...form };
+    if (attachments.length > 0) {
+      // Prefer sending media_ids (created via cloudinary) to the server
+      const mediaIds = attachments.filter(a => a.id).map(a => a.id);
+      if (mediaIds.length > 0) payload.media_ids = mediaIds;
+      // Keep legacy attachments payload (without ids) when no media ids exist
+      const legacy = attachments.filter(a => !a.id);
+      if (legacy.length > 0) payload.attachments = legacy;
+    }
+    onSubmit(payload);
   };
+
+  const addAttachment = async () => {
+    if (attachmentFile) {
+      try {
+        const owner = {};
+        const created = await uploadFileToCloudinary(attachmentFile, owner, { uploaded_by: undefined, type: attachmentType });
+        setAttachments(prev => [...prev, created]);
+        setAttachmentFile(null);
+        setAttachmentType('document');
+      } catch (err) {
+        alert('Failed to upload attachment: ' + err.message);
+      }
+      return;
+    }
+    if (!attachmentFilename || !attachmentUrl) return;
+    setAttachments(prev => [...prev, { filename: attachmentFilename, url: attachmentUrl }]);
+    setAttachmentFilename('');
+    setAttachmentUrl('');
+  };
+
+  const removeAttachment = (i) => setAttachments(prev => prev.filter((_, idx) => idx !== i));
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -288,6 +361,34 @@ function CreateTestingModal({ tickets, onClose, onSubmit }) {
               placeholder="Optional initial test results"
             />
           </div>
+            {/* Attachments */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
+              <div className="space-y-2">
+                {attachments.map((att, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 p-2 border rounded">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{att.filename}</div>
+                      <div className="text-xs text-gray-500 truncate max-w-full">{att.url}</div>
+                    </div>
+                    <button type="button" onClick={() => removeAttachment(i)} className="text-red-600">Remove</button>
+                  </div>
+                ))}
+                  <div className="flex gap-2">
+                  <input type="file" onChange={e => setAttachmentFile(e.target.files[0])} className="flex-1 p-2 border rounded" />
+                  <select value={attachmentType} onChange={e => setAttachmentType(e.target.value)} className="p-2 border rounded">
+                    <option value="document">Document</option>
+                    <option value="photo">Photo</option>
+                    <option value="video">Video</option>
+                  </select>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                  <input value={attachmentFilename} onChange={e => setAttachmentFilename(e.target.value)} placeholder="Filename" className="flex-1 p-2 border rounded" />
+                  <input value={attachmentUrl} onChange={e => setAttachmentUrl(e.target.value)} placeholder="URL" className="flex-1 p-2 border rounded" />
+                  <button type="button" onClick={addAttachment} className="px-3 py-1 bg-primary text-white rounded">Add</button>
+                </div>
+              </div>
+            </div>
           <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
@@ -316,11 +417,44 @@ function EditTestingModal({ session, onClose, onSubmit }) {
     test_type: session.test_type,
     results: session.results || ''
   });
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentFilename, setAttachmentFilename] = useState('');
+  const [attachmentUrl, setAttachmentUrl] = useState('');
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [attachmentType, setAttachmentType] = useState('document');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(session.id, form);
+    const payload = { ...form };
+    if (attachments.length > 0) {
+      const mediaIds = attachments.filter(a => a.id).map(a => a.id);
+      if (mediaIds.length > 0) payload.media_ids = mediaIds;
+      const legacy = attachments.filter(a => !a.id);
+      if (legacy.length > 0) payload.attachments = legacy;
+    }
+    onSubmit(session.id, payload);
   };
+
+  const addAttachment = async () => {
+    if (attachmentFile) {
+      try {
+        const owner = {};
+        const created = await uploadFileToCloudinary(attachmentFile, owner, { uploaded_by: undefined, type: attachmentType });
+        setAttachments(prev => [...prev, created]);
+        setAttachmentFile(null);
+        setAttachmentType('document');
+      } catch (err) {
+        alert('Failed to upload attachment: ' + err.message);
+      }
+      return;
+    }
+    if (!attachmentFilename || !attachmentUrl) return;
+    setAttachments(prev => [...prev, { filename: attachmentFilename, url: attachmentUrl }]);
+    setAttachmentFilename('');
+    setAttachmentUrl('');
+  };
+
+  const removeAttachment = (i) => setAttachments(prev => prev.filter((_, idx) => idx !== i));
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -361,6 +495,34 @@ function EditTestingModal({ session, onClose, onSubmit }) {
               rows={4}
               placeholder="Test results and notes"
             />
+          </div>
+          {/* Attachments */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
+            <div className="space-y-2">
+              {attachments.map((att, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 p-2 border rounded">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{att.filename}</div>
+                    <div className="text-xs text-gray-500 truncate max-w-full">{att.url}</div>
+                  </div>
+                  <button type="button" onClick={() => removeAttachment(i)} className="text-red-600">Remove</button>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <input type="file" onChange={e => setAttachmentFile(e.target.files[0])} className="flex-1 p-2 border rounded" />
+                <select value={attachmentType} onChange={e => setAttachmentType(e.target.value)} className="p-2 border rounded">
+                  <option value="document">Document</option>
+                  <option value="photo">Photo</option>
+                  <option value="video">Video</option>
+                </select>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <input value={attachmentFilename} onChange={e => setAttachmentFilename(e.target.value)} placeholder="Filename" className="flex-1 p-2 border rounded" />
+                <input value={attachmentUrl} onChange={e => setAttachmentUrl(e.target.value)} placeholder="URL" className="flex-1 p-2 border rounded" />
+                <button type="button" onClick={addAttachment} className="px-3 py-1 bg-primary text-white rounded">Add</button>
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-3 pt-4">
             <button

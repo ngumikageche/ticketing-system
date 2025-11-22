@@ -79,6 +79,7 @@ project/
 * Marshmallow (validation)
 * Alembic (migrations)
 * Psycopg2 (PostgreSQL driver)
+* Cloudinary (optional) for media storage
 
 ### **API Endpoints**
 

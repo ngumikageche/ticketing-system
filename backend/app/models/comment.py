@@ -13,6 +13,8 @@ class Comment(BaseModel):
     ticket = db.relationship('Ticket', back_populates='comments')
     author = db.relationship('User', back_populates='comments')
     parent_comment = db.relationship('Comment', remote_side='Comment.id', backref='replies')  # Self-referential for threading
+    # Media attachments for this comment
+    media = db.relationship('Media', back_populates='comment', cascade='all, delete-orphan')
 
     def to_dict(self, exclude=None, include=None):
         data = super().to_dict(exclude, include)

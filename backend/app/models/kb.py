@@ -19,6 +19,8 @@ class KnowledgeBaseArticle(BaseModel):
 
     author = db.relationship('User', back_populates='articles')
     tags = db.relationship('Tag', secondary=article_tags, back_populates='articles')
+    # Optional media attached to knowledgebase articles
+    media = db.relationship('Media', back_populates='kb_article', cascade='all, delete-orphan')
 
 
 class Tag(BaseModel):

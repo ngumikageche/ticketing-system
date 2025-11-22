@@ -15,3 +15,5 @@ class Message(BaseModel):
     conversation = db.relationship('Conversation', back_populates='messages')
     sender = db.relationship('User', back_populates='messages')
     parent_message = db.relationship('Message', remote_side='Message.id', backref='replies')  # Self-referential for threading
+    # Media attachments for this message
+    media = db.relationship('Media', back_populates='message', cascade='all, delete-orphan')

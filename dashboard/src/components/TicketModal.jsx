@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { uploadFileToCloudinary } from '../api/uploads.js';
 import { X } from 'lucide-react';
 
-export default function TicketModal({ open, onClose, onSubmit, mode = 'create', ticket = null, users = [] }) {
+export default function TicketModal({ open, onClose, onSubmit, mode = 'create', ticket = null, users = [], attachments: initialAttachments = [], currentUser = null }) {
   const [requesterType, setRequesterType] = useState('registered');
   const [form, setForm] = useState({
     subject: '',
@@ -12,6 +13,10 @@ export default function TicketModal({ open, onClose, onSubmit, mode = 'create', 
     status: '',
     description: ''
   });
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [attachmentType, setAttachmentType] = useState('document');
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (open && mode === 'edit' && ticket) {
@@ -26,6 +31,8 @@ export default function TicketModal({ open, onClose, onSubmit, mode = 'create', 
         status: ticket.status || '',
         description: ticket.description || ''
       });
+      // preload attachments if the ticket has them (front-end may load separate ticketAttachments)
+  setAttachments(initialAttachments || ticket.media || []);
     } else if (open && mode === 'create') {
       setForm({
         subject: '',
@@ -36,6 +43,7 @@ export default function TicketModal({ open, onClose, onSubmit, mode = 'create', 
         status: 'Open',
         description: ''
       });
+      setAttachments([]);
       if (users.length > 0) {
         setForm(prev => ({ ...prev, requester_id: users[0].id }));
       }
@@ -92,7 +100,32 @@ export default function TicketModal({ open, onClose, onSubmit, mode = 'create', 
     } else {
       delete submitData.requester_name;
     }
+    if (attachments && attachments.length > 0) {
+      const ids = attachments.map(a => a.id).filter(Boolean);
+      if (ids.length) submitData.media_ids = ids;
+    }
     onSubmit(submitData);
+  };
+
+  const addAttachment = async () => {
+    if (!attachmentFile) return;
+    try {
+      setUploading(true);
+      const owner = {};
+      if (mode === 'edit' && ticket && ticket.id) owner.ticket_id = ticket.id;
+      const createdMedia = await uploadFileToCloudinary(attachmentFile, owner, { uploaded_by: currentUser ? currentUser.id : undefined, type: attachmentType });
+      setAttachments(prev => [...prev, createdMedia]);
+      setAttachmentFile(null);
+      setAttachmentType('document');
+    } catch (err) {
+      alert('Failed to upload attachment: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAttachment = (i) => {
+    setAttachments(prev => prev.filter((_, idx) => idx !== i));
   };
 
   return (
@@ -227,6 +260,31 @@ export default function TicketModal({ open, onClose, onSubmit, mode = 'create', 
                 onChange={e => setForm({ ...form, description: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               />
+            </div>
+
+            {/* Attachments input: simple URL-based attachments for now */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
+              <div className="space-y-2">
+                {attachments.map((att, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 p-2 border rounded">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{att.filename}</div>
+                      <div className="text-xs text-gray-500 truncate max-w-full">{att.url}</div>
+                    </div>
+                    <button type="button" onClick={() => removeAttachment(i)} className="text-red-600">Remove</button>
+                  </div>
+                ))}
+                <div className="flex gap-2 items-center">
+                  <input type="file" onChange={e => setAttachmentFile(e.target.files[0])} className="flex-1 p-2" />
+                  <select value={attachmentType} onChange={e => setAttachmentType(e.target.value)} className="p-2 border rounded">
+                    <option value="document">Document</option>
+                    <option value="photo">Photo</option>
+                    <option value="video">Video</option>
+                  </select>
+                  <button type="button" onClick={addAttachment} disabled={!attachmentFile || uploading} className="px-3 py-1 bg-primary text-white rounded disabled:opacity-50">{uploading ? 'Uploading...' : 'Add'}</button>
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">

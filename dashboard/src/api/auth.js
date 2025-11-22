@@ -6,13 +6,15 @@ export const login = async (email, password) => {
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify({ email, password }),
   });
   if (!response.ok) {
     throw new Error('Login failed');
   }
   const data = await response.json();
-  localStorage.setItem('access_token', data.access_token);
+  // Token is stored in httpOnly cookie (and may be returned in body for dev tooling),
+  // but we do NOT write tokens to localStorage to avoid exposing them.
   return data;
 };
 
@@ -22,13 +24,14 @@ export const signup = async (name, email, password, securityAnswers) => {
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify({ name, email, password, security_answers: securityAnswers }),
   });
   if (!response.ok) {
     throw new Error('Signup failed');
   }
   const data = await response.json();
-  localStorage.setItem('access_token', data.access_token);
+  // Do not write token to localStorage; rely on httpOnly cookie
   return data;
 };
 
@@ -40,10 +43,20 @@ export const getSecurityQuestions = async () => {
   return await response.json();
 };
 
-export const logout = () => {
-  localStorage.removeItem('access_token');
+export const logout = async () => {
+  // Call the backend to clear cookies and invalidate tokens
+  try {
+    await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
+  } catch (err) {
+    // ignore
+  }
+  // Do not store token in localStorage; logout clears cookies server-side
 };
 
-export const getToken = () => {
-  return localStorage.getItem('access_token');
+export const getToken = () => null;
+
+export const refreshAccess = async () => {
+  const resp = await fetch(`${API_BASE}/auth/refresh`, { method: 'POST', credentials: 'include' });
+  if (!resp.ok) throw new Error('Failed to refresh access token');
+  return await resp.json();
 };

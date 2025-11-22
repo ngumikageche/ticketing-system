@@ -6,6 +6,8 @@ import { Plus, Search } from 'lucide-react';
 import { getTickets, createTicket, updateTicket, deleteTicket } from '../api/tickets.js';
 import { getUsers, getCurrentUser } from '../api/users.js';
 import { getComments, createComment } from '../api/comments.js';
+import { getAttachments, createAttachment, deleteAttachment } from '../api/attachments.js';
+import { uploadFileToCloudinary } from '../api/uploads.js';
 import { useRealtimeTickets, useRealtimeComments } from '../hooks/useRealtime';
 
 const priorityOrder = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
@@ -23,7 +25,13 @@ export default function Tickets() {
   const [editTicket, setEditTicket] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [editTicketAttachments, setEditTicketAttachments] = useState([]);
   const [newComment, setNewComment] = useState({ content: '' });
+  const [ticketAttachments, setTicketAttachments] = useState([]);
+  const [attachmentUrl, setAttachmentUrl] = useState('');
+  const [attachmentFilename, setAttachmentFilename] = useState('');
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [attachmentType, setAttachmentType] = useState('document');
   const [currentUser, setCurrentUser] = useState(null);
   const [searchParams] = useSearchParams();
 
@@ -66,9 +74,20 @@ export default function Tickets() {
 
   const handleCreateTicket = async (ticketData) => {
     try {
-      await createTicket(ticketData);
+      const created = await createTicket(ticketData);
       setShowModal(false);
       fetchTickets(); // Refetch tickets
+      // Create attachments if included
+      if (Array.isArray(ticketData.attachments) && ticketData.attachments.length > 0) {
+        for (const att of ticketData.attachments) {
+          await createAttachment({
+            filename: att.filename,
+            url: att.url,
+            uploaded_by: currentUser ? currentUser.id : undefined,
+            ticket_id: created.id,
+          });
+        }
+      }
     } catch (err) {
       alert('Error creating ticket: ' + err.message);
     }
@@ -79,11 +98,28 @@ export default function Tickets() {
     setShowViewModal(true);
     // Load comments for this ticket using real-time hook
     await loadComments(ticket.id);
+    // Load attachments for this ticket
+    try {
+      const atts = await getAttachments({ ticket_id: ticket.id });
+      setTicketAttachments(atts);
+    } catch (err) {
+      console.error('Failed to load ticket attachments', err);
+      setTicketAttachments([]);
+    }
   };
 
   const handleEdit = (ticket) => {
     setEditTicket(ticket);
     setShowEditModal(true);
+    // Preload attachments for editing
+    (async () => {
+      try {
+        const atts = await getAttachments({ ticket_id: ticket.id });
+        setEditTicketAttachments(atts);
+      } catch (err) {
+        setEditTicketAttachments([]);
+      }
+    })();
   };
 
   const handleDelete = async (ticket) => {
@@ -99,10 +135,21 @@ export default function Tickets() {
 
   const handleUpdateTicket = async (ticketData) => {
     try {
-      await updateTicket(editTicket.id, ticketData);
+      const updated = await updateTicket(editTicket.id, ticketData);
       setShowEditModal(false);
       setEditTicket(null);
       fetchTickets();
+      // Create attachments if included
+      if (Array.isArray(ticketData.attachments) && ticketData.attachments.length > 0) {
+        for (const att of ticketData.attachments) {
+          await createAttachment({
+            filename: att.filename,
+            url: att.url,
+            uploaded_by: currentUser ? currentUser.id : undefined,
+            ticket_id: updated.id,
+          });
+        }
+      }
     } catch (err) {
       alert('Error updating ticket: ' + err.message);
     }
@@ -121,6 +168,47 @@ export default function Tickets() {
       // Comments will be updated automatically via WebSocket
     } catch (err) {
       alert('Error adding comment: ' + err.message);
+    }
+  };
+
+  const handleAddAttachment = async (e) => {
+    e.preventDefault();
+    if (!currentUser || !viewTicket) return;
+    try {
+      let created;
+      if (attachmentFile) {
+        // Use Cloudinary signed upload helper and attach to this ticket
+        const owner = { ticket_id: viewTicket.id };
+        created = await uploadFileToCloudinary(attachmentFile, owner, { uploaded_by: currentUser.id, type: attachmentType });
+        setAttachmentFile(null);
+        setAttachmentType('document');
+      } else {
+        // fallback to URL-based attachment
+        if (!attachmentFilename || !attachmentUrl) return;
+        created = await createAttachment({
+          filename: attachmentFilename,
+          url: attachmentUrl,
+          uploaded_by: currentUser.id,
+          ticket_id: viewTicket.id,
+        });
+        setAttachmentFilename('');
+        setAttachmentUrl('');
+      }
+      // reload attachments
+      const atts = await getAttachments({ ticket_id: viewTicket.id });
+      setTicketAttachments(atts);
+    } catch (err) {
+      alert('Failed to add attachment: ' + err.message);
+    }
+  };
+
+  const handleDeleteAttachment = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this attachment?')) return;
+    try {
+      await deleteAttachment(id);
+      setTicketAttachments(ticketAttachments.filter(a => a.id !== id));
+    } catch (err) {
+      alert('Failed to delete attachment: ' + err.message);
     }
   };
 
@@ -240,7 +328,7 @@ export default function Tickets() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 relative">
             <button
-              onClick={() => { setShowViewModal(false); setViewTicket(null); setNewComment({ content: '' }); }}
+              onClick={() => { setShowViewModal(false); setViewTicket(null); setNewComment({ content: '' }); setTicketAttachments([]); }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             >
               ×
@@ -290,6 +378,47 @@ export default function Tickets() {
                     Add Comment
                   </button>
                 </form>
+                
+                {/* Attachments for this ticket */}
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-2">Attachments</h3>
+                  <div className="space-y-3 mb-3">
+                    {ticketAttachments.length === 0 ? (
+                      <p className="text-gray-500">No attachments for this ticket.</p>
+                    ) : (
+                      ticketAttachments.map(a => (
+                        <div key={a.id} className="flex items-center justify-between p-2 rounded border">
+                          <div>
+                            <a href={a.secure_url || a.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{a.filename}</a>
+                            <div className="text-xs text-gray-500">{a.resource_type || a.type} • {a.size || '-'} bytes</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => handleDeleteAttachment(a.id)} className="px-3 py-1 border rounded">Delete</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <form onSubmit={handleAddAttachment} className="space-y-2">
+                    <div className="flex gap-2 items-center">
+                      <input type="file" onChange={e => setAttachmentFile(e.target.files[0])} className="flex-1 p-2" />
+                      <select value={attachmentType} onChange={e => setAttachmentType(e.target.value)} className="p-2 border rounded">
+                        <option value="document">Document</option>
+                        <option value="photo">Photo</option>
+                        <option value="video">Video</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <input value={attachmentFilename} onChange={e => setAttachmentFilename(e.target.value)} placeholder="Filename" className="w-full p-2 border rounded" />
+                      <input value={attachmentUrl} onChange={e => setAttachmentUrl(e.target.value)} placeholder="URL (e.g., https://)" className="w-full p-2 border rounded" />
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button type="submit" className="px-3 py-1 bg-primary text-white rounded">Attach</button>
+                      <button type="button" onClick={() => { setAttachmentFilename(''); setAttachmentUrl(''); }} className="px-3 py-1 border rounded">Cancel</button>
+                    </div>
+                  </form>
+                </div>
               </div>
             </div>
           </div>
@@ -304,6 +433,7 @@ export default function Tickets() {
         mode="edit"
         ticket={editTicket}
         users={users}
+        attachments={editTicketAttachments}
       />
     </div>
   );

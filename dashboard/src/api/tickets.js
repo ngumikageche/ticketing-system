@@ -1,14 +1,12 @@
-import { getToken } from './auth.js';
+// Use cookie-based auth; do not import `getToken`.
+import fetchWithAuth from './fetchWithAuth.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
-const getAuthHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${getToken()}`,
-});
+const getAuthHeaders = () => ({ 'Content-Type': 'application/json' });
 
 export const getTickets = async () => {
-  const response = await fetch(`${API_BASE}/tickets/`, {
+  const response = await fetchWithAuth(`${API_BASE}/tickets/`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) throw new Error('Failed to fetch tickets');
@@ -16,7 +14,7 @@ export const getTickets = async () => {
 };
 
 export const createTicket = async (ticketData) => {
-  const response = await fetch(`${API_BASE}/tickets/`, {
+  const response = await fetchWithAuth(`${API_BASE}/tickets/`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(ticketData),
@@ -26,7 +24,7 @@ export const createTicket = async (ticketData) => {
 };
 
 export const getTicket = async (id) => {
-  const response = await fetch(`${API_BASE}/tickets/${id}`, {
+  const response = await fetchWithAuth(`${API_BASE}/tickets/${id}`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) throw new Error('Failed to fetch ticket');
@@ -34,7 +32,7 @@ export const getTicket = async (id) => {
 };
 
 export const updateTicket = async (id, ticketData) => {
-  const response = await fetch(`${API_BASE}/tickets/${id}`, {
+  const response = await fetchWithAuth(`${API_BASE}/tickets/${id}`, {
     method: 'PATCH',
     headers: getAuthHeaders(),
     body: JSON.stringify(ticketData),
@@ -44,7 +42,7 @@ export const updateTicket = async (id, ticketData) => {
 };
 
 export const deleteTicket = async (id) => {
-  const response = await fetch(`${API_BASE}/tickets/${id}`, {
+  const response = await fetchWithAuth(`${API_BASE}/tickets/${id}`, {
     method: 'DELETE',
     headers: getAuthHeaders(),
   });

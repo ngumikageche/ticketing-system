@@ -83,6 +83,15 @@ def create_testing():
         testing.save()
     except ValueError as e:
         abort(400, str(e))
+    # Associate any provided media ids with this testing session
+    if 'media_ids' in data and isinstance(data['media_ids'], (list, tuple)):
+        from app.models.media import Media
+        for m_id in data['media_ids']:
+            media = Media.query.filter_by(id=m_id).first()
+            if media:
+                media.testing_id = testing.id
+                db.session.add(media)
+        db.session.commit()
     
     return jsonify(testing.to_dict()), 201
 
@@ -126,6 +135,15 @@ def update_testing(id_):
             abort(400, f'Error updating status: {str(e)}')
     else:
         testing.save()
+    # Associate any provided media ids with this testing session
+    if 'media_ids' in data and isinstance(data['media_ids'], (list, tuple)):
+        from app.models.media import Media
+        for m_id in data['media_ids']:
+            media = Media.query.filter_by(id=m_id).first()
+            if media:
+                media.testing_id = testing.id
+                db.session.add(media)
+        db.session.commit()
     
     return jsonify(testing.to_dict())
 

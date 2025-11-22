@@ -15,3 +15,5 @@ class Conversation(BaseModel):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
     participants = db.relationship('ConversationParticipant', back_populates='conversation', cascade='all, delete-orphan')
     messages = db.relationship('Message', back_populates='conversation', cascade='all, delete-orphan')
+    # Media attachments that are scoped to this conversation
+    media = db.relationship('Media', back_populates='conversation', cascade='all, delete-orphan')

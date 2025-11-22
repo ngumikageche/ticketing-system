@@ -26,6 +26,16 @@ class User(BaseModel):
     notifications = db.relationship('Notification', back_populates='user')
     conversation_participations = db.relationship('ConversationParticipant', back_populates='user')
     testing_sessions = db.relationship('Testing', back_populates='tester')
+    # Optional profile media (e.g., avatar) and other media they own
+    # Single FK to a media record used as the user's profile picture
+    profile_media_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('media.id'), nullable=True)
+    profile_media = db.relationship('Media', foreign_keys=[profile_media_id], post_update=True)
+
+    # Media owned by this user (e.g., uploaded files), as generic media attachments
+    media = db.relationship('Media', foreign_keys='Media.user_id', back_populates='owner_user', cascade='all, delete-orphan')
+
+    # Media uploaded by this user (uploader relation) - optional reverse relation
+    uploaded_media = db.relationship('Media', foreign_keys='Media.uploaded_by', back_populates='uploader', cascade='none')
 
     def set_password(self, password):
         self.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()

@@ -316,53 +316,148 @@ def mark_message_read(conv_id, message_id):
     if not participant:
         abort(403, 'not a participant in this conversation')
     
-    # Check if already read
+    # Check if already read, insert if needed (safe against races/duplicates)
     from app.models.message_read_status import MessageReadStatus
     existing = MessageReadStatus.query.filter_by(message_id=message_id, user_id=current_user_id).first()
     if existing:
-        return jsonify({'status': 'already read'}), 200
-    
-    # Mark as read
+        return jsonify({'status': 'already read', 'messages_marked_read': 0}), 200
+
+    # Attempt to insert safely. If Postgres available, use ON CONFLICT DO NOTHING for efficiency.
     read_status = MessageReadStatus(message_id=message_id, user_id=current_user_id)
-    read_status.save()
-    
-    return jsonify({'status': 'marked as read'}), 200
+    if db.session.bind and getattr(db.session.bind, 'dialect', None) and db.session.bind.dialect.name == 'postgresql':
+        try:
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            row = {
+                'id': uuid.uuid4(),
+                'message_id': read_status.message_id,
+                'user_id': read_status.user_id,
+                'is_deleted': read_status.is_deleted,
+            }
+            stmt = pg_insert(MessageReadStatus.__table__).values([row])
+            stmt = stmt.on_conflict_do_nothing(index_elements=['message_id', 'user_id'])
+            db.session.execute(stmt)
+            db.session.commit()
+            return jsonify({'status': 'marked as read', 'messages_marked_read': 1}), 200
+        except Exception:
+            db.session.rollback()
+    # Fallback: try a per-row insert and tolerate IntegrityError if inserted concurrently
+    try:
+        db.session.add(read_status)
+        db.session.commit()
+        return jsonify({'status': 'marked as read', 'messages_marked_read': 1}), 200
+    except Exception:
+        # likely an IntegrityError due to a concurrent insert. Return success: 0 newly created.
+        db.session.rollback()
+        return jsonify({'status': 'already read', 'messages_marked_read': 0}), 200
 
 
 @conversations_bp.route('/<conv_id>/read', methods=['POST'])
 @jwt_required_optional
 def mark_conversation_read(conv_id):
-    """Mark all messages in a conversation as read for the current user"""
     conv = _get_or_404(Conversation, conv_id)
-    
+
     # Get current user from JWT token
     identity = get_jwt_identity()
     try:
         current_user_id = uuid.UUID(identity)
     except ValueError:
         abort(401, 'invalid token')
-    
+
     # Check if current user is a participant in this conversation
     participant = ConversationParticipant.query.filter_by(conversation_id=conv.id, user_id=current_user_id).first()
     if not participant:
         abort(403, 'not a participant in this conversation')
-    
-    # Get all unread messages in this conversation for the current user
+
+    # Get all unread messages in this conversation
     unread_messages = Message.active().filter_by(conversation_id=conv.id).filter(
         ~Message.id.in_(
             db.session.query(MessageReadStatus.message_id).filter_by(user_id=current_user_id)
         )
     ).all()
+
+    # Build read status objects
+    read_statuses = []
+    for msg in unread_messages:
+        read_statuses.append(MessageReadStatus(message_id=msg.id, user_id=current_user_id))
+
+    # Insert with upsert on Postgres or safe per-row insert
+    if read_statuses:
+        if db.session.bind and getattr(db.session.bind, 'dialect', None) and db.session.bind.dialect.name == 'postgresql':
+            try:
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+                rows = [
+                    {
+                        'id': uuid.uuid4(),
+                        'message_id': rs.message_id,
+                        'user_id': rs.user_id,
+                        'is_deleted': rs.is_deleted,
+                    }
+                    for rs in read_statuses
+                ]
+                stmt = pg_insert(MessageReadStatus.__table__).values(rows)
+                stmt = stmt.on_conflict_do_nothing(index_elements=['message_id', 'user_id'])
+                db.session.execute(stmt)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+        else:
+            from sqlalchemy.exc import IntegrityError
+            try:
+                db.session.bulk_save_objects(read_statuses)
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                for rs in read_statuses:
+                    exists = MessageReadStatus.query.filter_by(message_id=rs.message_id, user_id=rs.user_id).first()
+                    if not exists:
+                        db.session.add(rs)
+                db.session.commit()
+
+    return jsonify({'status': 'conversation marked as read', 'messages_marked_read': len(read_statuses)}), 200
     
     # Mark all unread messages as read
+    # Deduplicate message IDs in case unread_messages contains duplicates
     read_statuses = []
+    seen_msg_ids = set()
     for message in unread_messages:
+        if message.id in seen_msg_ids:
+            continue
+        seen_msg_ids.add(message.id)
         read_status = MessageReadStatus(message_id=message.id, user_id=current_user_id)
         read_statuses.append(read_status)
     
     if read_statuses:
-        db.session.bulk_save_objects(read_statuses)
-        db.session.commit()
+        # Try to perform a bulk upsert (insert do nothing on conflict) on Postgres
+        try:
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            rows = [
+                {
+                    'id': uuid.uuid4(),
+                    'message_id': rs.message_id,
+                    'user_id': rs.user_id,
+                    'is_deleted': rs.is_deleted,
+                }
+                for rs in read_statuses
+            ]
+            stmt = pg_insert(MessageReadStatus.__table__).values(rows)
+            stmt = stmt.on_conflict_do_nothing(index_elements=['message_id', 'user_id'])
+            db.session.execute(stmt)
+            db.session.commit()
+        except Exception:
+            # Fall back to safe per-row insert if upsert isn't available (e.g., sqlite or older SQLAlchemy)
+            from sqlalchemy.exc import IntegrityError
+            try:
+                # As a fallback for distinctive DBs, prefer session.add_all with an exist check
+                db.session.bulk_save_objects(read_statuses)
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                # Insert rows individually, skipping any that already exist to avoid UniqueViolation
+                for rs in read_statuses:
+                    exists = MessageReadStatus.query.filter_by(message_id=rs.message_id, user_id=rs.user_id).first()
+                    if not exists:
+                        db.session.add(rs)
+                db.session.commit()
     
     return jsonify({
         'status': 'conversation marked as read',
@@ -402,14 +497,40 @@ def mark_messages_read_up_to(conv_id, message_id):
     ).all()
     
     # Mark all these messages as read
+    # Deduplicate message IDs before creating read status objects
     read_statuses = []
+    seen_msg_ids = set()
     for msg in unread_messages:
+        if msg.id in seen_msg_ids:
+            continue
+        seen_msg_ids.add(msg.id)
         read_status = MessageReadStatus(message_id=msg.id, user_id=current_user_id)
         read_statuses.append(read_status)
     
     if read_statuses:
-        db.session.bulk_save_objects(read_statuses)
-        db.session.commit()
+        # If we're backed by Postgres, use an efficient ON CONFLICT DO NOTHING upsert
+        if db.session.bind and getattr(db.session.bind, 'dialect', None) and db.session.bind.dialect.name == 'postgresql':
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            rows = [
+                {
+                    'id': uuid.uuid4(),
+                    'message_id': rs.message_id,
+                    'user_id': rs.user_id,
+                    'is_deleted': rs.is_deleted,
+                }
+                for rs in read_statuses
+            ]
+            stmt = pg_insert(MessageReadStatus.__table__).values(rows)
+            stmt = stmt.on_conflict_do_nothing(index_elements=['message_id', 'user_id'])
+            db.session.execute(stmt)
+            db.session.commit()
+        else:
+            # Fall back to safe per-row insert; skip existing rows to avoid duplicates
+            for rs in read_statuses:
+                exists = MessageReadStatus.query.filter_by(message_id=rs.message_id, user_id=rs.user_id).first()
+                if not exists:
+                    db.session.add(rs)
+            db.session.commit()
     
     return jsonify({
         'status': 'messages marked as read up to specified message',

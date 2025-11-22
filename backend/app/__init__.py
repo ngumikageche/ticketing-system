@@ -88,6 +88,19 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
 
+    # Configure Cloudinary SDK if available and environment is set
+    try:
+        import cloudinary
+        # Set config if we have values; cloudinary.config will ignore None values
+        cloudinary.config(
+            cloud_name=app.config.get('CLOUDINARY_CLOUD_NAME'),
+            api_key=app.config.get('CLOUDINARY_API_KEY'),
+            api_secret=app.config.get('CLOUDINARY_API_SECRET')
+        )
+    except Exception:
+        # Cloudinary library not installed or configuration failed — ignore gracefully
+        pass
+
     # Only initialize Socket.IO if we're running the server (not during db commands)
     if hasattr(socketio, 'init_app') and callable(getattr(socketio, 'init_app', None)):
         # Ensure the Socket.IO instance is explicitly attached to the Flask app
@@ -140,6 +153,7 @@ def create_app():
         from .routes.notifications import notifications_bp
         from .routes.conversations import conversations_bp
         from .routes.testing import testing_bp
+        from .routes.uploads import uploads_bp
         app.register_blueprint(auth_bp, url_prefix='/api/auth')
         app.register_blueprint(tickets_bp, url_prefix='/api/tickets')
         app.register_blueprint(kb_bp, url_prefix='/api/kb')
@@ -151,6 +165,7 @@ def create_app():
         app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
         app.register_blueprint(conversations_bp, url_prefix='/api/conversations')
         app.register_blueprint(testing_bp, url_prefix='/api/testing')
+        app.register_blueprint(uploads_bp, url_prefix='/api/uploads')
     except Exception:
         # Surface import / registration errors so they are visible in development
         logging.exception("Failed to import blueprints for app; blueprints won't be registered")
@@ -183,4 +198,43 @@ def create_app():
             leave_room(room, sid=request.sid)
             socketio.emit('status', {'message': f'Left room: {room}'})
 
-    return app, socketio
+    # Register an unauthorized redirect handler (will return JSON 401 for API clients,
+    # redirect browsers to the configured FRONTEND_URL for navigation requests).
+    try:
+        _register_unauthorized_redirect(app)
+    except Exception:
+        app.logger.exception('Failed to register unauthorized redirect handler')
+
+    # Return only the Flask `app` from the factory; `socketio` is a module-level
+    # object that may be imported directly for server startup (e.g., wsgi.py).
+    return app
+
+
+    # Add an error handler for unauthorized access to redirect to frontend signin
+    # This will be executed for page navigation requests and will return a redirect
+    # to the configured FRONTEND_URL (if set). For API clients, the default JSON 401
+    # response will be returned. The handler is registered after app configuration
+    # so it can access `app.config.FRONTEND_URL`.
+
+def _register_unauthorized_redirect(app):
+    from flask import request, redirect, jsonify
+
+    @app.errorhandler(401)
+    def _handle_unauthorized(err):
+        accept = request.headers.get('Accept', '')
+        frontend_url = app.config.get('FRONTEND_URL')
+        redirect_enabled = app.config.get('REDIRECT_ON_UNAUTHORIZED', False)
+        # Only redirect if this looks like a user navigation (page load) instead of
+        # an API/XHR request. Prefer the Sec-Fetch-* headers when available.
+        sec_mode = request.headers.get('Sec-Fetch-Mode', '')
+        sec_dest = request.headers.get('Sec-Fetch-Dest', '')
+        is_navigation = sec_mode == 'navigate' or sec_dest == 'document'
+
+        # For security and to avoid redirect loops, the backend will always return a JSON 401.
+        # The SPA (frontend) should handle navigation/redirect flows when it encounters a 401
+        # response. Historically a server-side redirect could cause nested redirect loops
+        # due to `next` params; moving redirect handling to the client avoids this problem.
+        app.logger.debug('Returning JSON 401 (unauthorized) - frontend should handle redirect behavior')
+        return jsonify({'msg': 'Unauthorized'}), 401
+
+_register_unauthorized_redirect.__doc__ = 'Register unauthorized handler'

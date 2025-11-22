@@ -66,6 +66,15 @@ def create_ticket():
         assignee_id=data.get('assignee_id'),
     )
     ticket.save()
+    # Associate any provided media ids with this ticket
+    if 'media_ids' in data and isinstance(data['media_ids'], (list, tuple)):
+        from app.models.media import Media
+        for m_id in data['media_ids']:
+            media = Media.query.filter_by(id=m_id).first()
+            if media:
+                media.ticket_id = ticket.id
+                db.session.add(media)
+        db.session.commit()
 
     # emit hook for ticket created so handlers (including defaults) can
     # create notifications or perform other side-effects
@@ -106,6 +115,15 @@ def update_ticket(id_):
         from datetime import datetime, timezone
         t.status_changed_at = datetime.utcnow().replace(tzinfo=timezone.utc)
     t.save()
+    # Associate any provided media ids with this ticket
+    if 'media_ids' in data and isinstance(data['media_ids'], (list, tuple)):
+        from app.models.media import Media
+        for m_id in data['media_ids']:
+            media = Media.query.filter_by(id=m_id).first()
+            if media:
+                media.ticket_id = t.id
+                db.session.add(media)
+        db.session.commit()
     
     # emit hook for ticket updated so handlers (including defaults) can
     # create notifications or perform other side-effects

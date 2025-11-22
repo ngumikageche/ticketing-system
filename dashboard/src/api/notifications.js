@@ -1,62 +1,43 @@
-import { getToken } from './auth.js';
+// Avoid using localStorage token; rely on cookies
+import fetchWithAuth from './fetchWithAuth.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
-const getAuthHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${getToken()}`,
-});
+const getAuthHeaders = () => ({ 'Content-Type': 'application/json' });
 
 export const getNotifications = async () => {
-  const response = await fetch(`${API_BASE}/notifications/`, {
-    headers: getAuthHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/notifications/`, { headers: getAuthHeaders() });
   if (!response.ok) throw new Error('Failed to fetch notifications');
   return response.json();
 };
 
 export const markNotificationAsRead = async (id) => {
-  const response = await fetch(`${API_BASE}/notifications/${id}/read`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/notifications/${id}/read`, { method: 'POST', headers: getAuthHeaders() });
   if (!response.ok) throw new Error('Failed to mark notification as read');
   return response.json();
 };
 
 export const deleteNotification = async (id) => {
-  const response = await fetch(`${API_BASE}/notifications/${id}`, {
-    method: 'DELETE',
-    headers: getAuthHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/notifications/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
   if (!response.ok) throw new Error('Failed to delete notification');
   // 204 responses have no content, so we don't call response.json()
   return response.status === 204 ? null : response.json();
 };
 
 export const setWebhookUrl = async (webhookUrl) => {
-  const response = await fetch(`${API_BASE}/users/me/webhook`, {
-    method: 'PUT',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ webhook_url: webhookUrl }),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/users/me/webhook`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ webhook_url: webhookUrl }) });
   if (!response.ok) throw new Error('Failed to set webhook URL');
   return response.json();
 };
 
 export const getWebhookUrl = async () => {
-  const response = await fetch(`${API_BASE}/users/me/webhook`, {
-    headers: getAuthHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/users/me/webhook`, { headers: getAuthHeaders() });
   if (!response.ok) throw new Error('Failed to get webhook URL');
   return response.json();
 };
 
 export const testWebhook = async () => {
-  const response = await fetch(`${API_BASE}/notifications/webhooks/test`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/notifications/webhooks/test`, { method: 'POST', headers: getAuthHeaders() });
   if (!response.ok) throw new Error('Failed to test webhook');
   return response.json();
 };
