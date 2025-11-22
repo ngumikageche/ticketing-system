@@ -117,11 +117,7 @@ def signup():
     resp = make_response(jsonify(body), 201)
     set_access_cookies(resp, access)
     set_refresh_cookies(resp, refresh)
-    # If this was a browser navigation (text/html), redirect to the frontend signin page
-    accept = request.headers.get('Accept', '')
-    frontend = current_app.config.get('FRONTEND_URL')
-    if 'text/html' in accept and frontend:
-        return redirect(f"{frontend.rstrip('/')}/signin?next={request.url}", 302)
+    # Return JSON response with cookies set; frontend SPA should handle navigation.
     return resp
 
 
@@ -152,11 +148,7 @@ def login():
     resp = make_response(jsonify(body), 200)
     set_access_cookies(resp, access)
     set_refresh_cookies(resp, refresh)
-    # If this was a browser navigation (text/html), redirect to the frontend signin page
-    accept = request.headers.get('Accept', '')
-    frontend = current_app.config.get('FRONTEND_URL')
-    if 'text/html' in accept and frontend:
-        return redirect(f"{frontend.rstrip('/')}/signin?next={request.url}", 302)
+    # Return JSON response with cookies set; frontend SPA should handle navigation.
     return resp
 
 
