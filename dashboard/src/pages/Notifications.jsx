@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { getNotifications, markNotificationAsRead, deleteNotification } from '../api/notifications.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import { getTickets } from '../api/tickets.js';
 import { getConversations } from '../api/conversations.js';
 
@@ -14,10 +15,13 @@ export default function Notifications() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const navigate = useNavigate();
+  const { currentUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    loadNotifications();
-  }, []);
+    if (!authLoading && currentUser) {
+      loadNotifications();
+    }
+  }, [authLoading, currentUser]);
 
   const loadNotifications = async () => {
     try {

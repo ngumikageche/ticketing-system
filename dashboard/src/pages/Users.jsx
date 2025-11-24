@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
-import { getUsers, createUser, updateUser, deleteUser, getCurrentUser } from '../api/users.js';
+import { getUsers, createUser, updateUser, deleteUser } from '../api/users.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 export default function Users() {
   const [users, setUsers] = useState([]);
@@ -15,6 +16,7 @@ export default function Users() {
     password: ''
   });
   const [currentUser, setCurrentUser] = useState(null);
+  const { currentUser: authCurrentUser, loading: authLoading } = useAuth();
 
   const fetchUsers = async () => {
     try {
@@ -28,9 +30,10 @@ export default function Users() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersData, currentUserData] = await Promise.all([getUsers(), getCurrentUser()]);
+        const usersData = await getUsers();
         setUsers(usersData);
-        setCurrentUser(currentUserData);
+        // set currentUser from auth context if available
+        if (!authLoading && authCurrentUser) setCurrentUser(authCurrentUser);
       } catch (err) {
         setError(err.message);
       } finally {

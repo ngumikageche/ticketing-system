@@ -4,7 +4,8 @@ import TicketModal from '../components/TicketModal';
 import TicketRow from '../components/TicketRow';
 import { Plus, Search } from 'lucide-react';
 import { getTickets, createTicket, updateTicket, deleteTicket } from '../api/tickets.js';
-import { getUsers, getCurrentUser } from '../api/users.js';
+import { getUsers } from '../api/users.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import { getComments, createComment } from '../api/comments.js';
 import { getAttachments, createAttachment, deleteAttachment } from '../api/attachments.js';
 import { uploadFileToCloudinary } from '../api/uploads.js';
@@ -33,6 +34,7 @@ export default function Tickets() {
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [attachmentType, setAttachmentType] = useState('document');
   const [currentUser, setCurrentUser] = useState(null);
+  const { currentUser: authCurrentUser, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
 
   // Use real-time hooks
@@ -42,12 +44,10 @@ export default function Tickets() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersData, currentUserData] = await Promise.all([
-          getUsers(),
-          getCurrentUser()
-        ]);
+        const usersData = await getUsers();
         setUsers(usersData);
-        setCurrentUser(currentUserData);
+        // set current user from auth context when available
+        if (!authLoading && authCurrentUser) setCurrentUser(authCurrentUser);
         // Load tickets using the real-time hook
         await loadTickets();
       } catch (err) {

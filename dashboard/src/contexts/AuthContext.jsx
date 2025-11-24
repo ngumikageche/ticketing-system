@@ -36,6 +36,11 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      // Skip loading if on login page
+      if (window.location && window.location.pathname === '/login') {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const user = await apiGetCurrentUser();
@@ -56,8 +61,10 @@ export const AuthProvider = ({ children }) => {
     const handleFailure = () => {
       // Clear state and navigate to login
       setCurrentUser(null);
-      // SPA navigation via helper - fallback to full navigation if not available
-      navigateTo('/login');
+      // Only navigate if not already on login page
+      if (window.location.pathname !== '/login') {
+        navigateTo('/login');
+      }
     };
     registerAuthFailureHandler(handleFailure);
   }, []);
