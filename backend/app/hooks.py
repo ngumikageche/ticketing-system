@@ -221,6 +221,7 @@ def _default_comment_deleted_handler(comment):
 # Webhook functionality
 import requests
 from flask import current_app
+from app import cache
 
 
 def send_webhook_notification(notification, data=None):
@@ -455,6 +456,9 @@ def _default_comment_created_handler(comment):
         notification.save()
         _send_webhook_for_notification(notification, comment_data)
 
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
+
 
 def _default_comment_updated_handler(comment):
     from app.models.notification import Notification
@@ -494,6 +498,9 @@ def _default_comment_updated_handler(comment):
         notification.save()
         _send_webhook_for_notification(notification, comment_data)
 
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
+
 
 def _default_comment_deleted_handler(comment):
     from app.models.notification import Notification
@@ -523,6 +530,9 @@ def _default_comment_deleted_handler(comment):
         )
         notification.save()
         _send_webhook_for_notification(notification)
+
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
 
 
 def _default_ticket_created_handler(ticket):
@@ -609,6 +619,9 @@ def _default_ticket_created_handler(ticket):
 
             logging.exception('error creating assignee notification')
 
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
+
 
 def _default_ticket_updated_handler(ticket):
     from app.models.notification import Notification
@@ -645,6 +658,9 @@ def _default_ticket_updated_handler(ticket):
         notification.save()
         _send_webhook_for_notification(notification, ticket_data)
 
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
+
 
 def _default_ticket_deleted_handler(ticket):
     from app.models.notification import Notification
@@ -671,6 +687,9 @@ def _default_ticket_deleted_handler(ticket):
         )
         notification.save()
         _send_webhook_for_notification(notification)
+
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
 
 
 def _default_user_created_handler(user):
@@ -701,6 +720,9 @@ def _default_user_created_handler(user):
         notification.save()
         _send_webhook_for_notification(notification, user_data)
 
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
+
 
 def _default_user_updated_handler(user):
     from app.models.notification import Notification
@@ -728,6 +750,9 @@ def _default_user_deleted_handler(user):
         )
         notification.save()
         _send_webhook_for_notification(notification, user_data)
+
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
 
 
 def _default_kb_article_created_handler(article):
@@ -757,6 +782,9 @@ def _default_kb_article_created_handler(article):
         )
         notification.save()
         _send_webhook_for_notification(notification, article_data)
+
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
 
 
 def _default_kb_article_updated_handler(article):
@@ -814,6 +842,9 @@ def _default_attachment_created_handler(attachment):
         notification.save()
         _send_webhook_for_notification(notification, attachment_data)
 
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
+
 
 def _default_attachment_updated_handler(attachment):
     from app.models.notification import Notification
@@ -852,6 +883,9 @@ def _default_attachment_updated_handler(attachment):
         notification.save()
         _send_webhook_for_notification(notification)
 
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
+
 
 def _default_attachment_deleted_handler(attachment):
     from app.models.notification import Notification
@@ -882,6 +916,9 @@ def _default_attachment_deleted_handler(attachment):
         )
         notification.save()
         _send_webhook_for_notification(notification)
+
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
 
 
 def _default_message_created_handler(message):
@@ -925,6 +962,9 @@ def _default_message_created_handler(message):
             notification.save()
             _send_webhook_for_notification(notification, message_data)
 
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
+
 
 def _default_message_deleted_handler(message):
     from app.models.notification import Notification
@@ -959,6 +999,9 @@ def _default_message_deleted_handler(message):
         )
         notification.save()
         _send_webhook_for_notification(notification)
+
+    # Invalidate notifications cache since new notifications were created
+    cache.delete('notifications_list')
 
 
 def _default_conversation_created_handler(conversation):
