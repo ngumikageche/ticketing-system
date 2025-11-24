@@ -1,3 +1,4 @@
+# or vim, code, etc.
 """Add ticket_id sequence and trigger for automatic ticket numbering
 
 Creates a sequence `ticket_seq` starting at 1000 and a trigger on the
@@ -37,7 +38,7 @@ def upgrade():
                 CREATE TRIGGER trigger_set_ticket_id
                 BEFORE INSERT ON tickets
                 FOR EACH ROW
-                EXECUTE FUNCTION set_ticket_id();
+                EXECUTE PROCEDURE set_ticket_id();
             END IF;
         END$$;
     """)
