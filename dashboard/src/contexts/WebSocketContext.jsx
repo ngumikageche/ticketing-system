@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import io from 'socket.io-client';
 import { processWebhookPayload, getNotifications, markNotificationAsRead as markNotificationAsReadAPI } from '../api/notifications.js';
-import { getCurrentUser } from '../api/users.js';
+import { useAuth } from './AuthContext.jsx';
 
 const WebSocketContext = createContext();
 
@@ -18,23 +18,24 @@ export const WebSocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [realtimeData, setRealtimeData] = useState({});
-  const [currentUser, setCurrentUser] = useState(null);
+  const { currentUser: authUser, loading: authLoading } = useAuth();
   const [pollingInterval, setPollingInterval] = useState(null);
 
   // Polling fallback function - use currentUser from state
   const pollNotifications = useCallback(async () => {
     try {
+      if (!authUser) return; // Don't poll if no authenticated user
       const data = await getNotifications();
       // Filter to ensure only current user's notifications (API should do this, but double-check)
-      const filteredData = currentUser
-        ? data.filter(n => n.user_id === currentUser.id)
+      const filteredData = authUser
+        ? data.filter(n => n.user_id === authUser.id)
         : data;
       setNotifications(filteredData);
-      console.log('Polled notifications for user:', currentUser?.email || 'undefined', filteredData.length, 'notifications');
+      console.log('Polled notifications for user:', authUser?.email || 'undefined', filteredData.length, 'notifications');
     } catch (error) {
       console.error('Failed to poll notifications:', error);
     }
-  }, [currentUser]);
+  }, [authUser]);
 
   useEffect(() => {
     let newSocket = null;
@@ -42,15 +43,13 @@ export const WebSocketProvider = ({ children }) => {
     // Load initial notifications and current user
     const loadInitialData = async () => {
       try {
-        const [notificationsData, userData] = await Promise.all([
-          getNotifications(),
-          getCurrentUser()
-        ]);
-        setCurrentUser(userData);
+        // If no authenticated user yet, skip loading
+        if (!authUser) return;
+        const notificationsData = await getNotifications();
         // Filter notifications to ensure they belong to current user
-        const filteredNotifications = notificationsData.filter(n => n.user_id === userData.id);
+        const filteredNotifications = notificationsData.filter(n => n.user_id === authUser.id);
         setNotifications(filteredNotifications);
-        console.log('Loaded initial notifications for user:', userData.email, filteredNotifications.map(n => ({ id: n.id, message: n.message.substring(0, 50) })));
+        console.log('Loaded initial notifications for user:', authUser.email, filteredNotifications.map(n => ({ id: n.id, message: n.message.substring(0, 50) })));
       } catch (error) {
         console.error('Failed to load initial data:', error);
       }
@@ -58,10 +57,9 @@ export const WebSocketProvider = ({ children }) => {
 
     // Load data and then attempt WebSocket connection if we have a logged-in user
   (async () => {
+      // Only load and connect if the authenticated user is available
+      if (!authUser || authLoading) return;
       await loadInitialData();
-      // After loading user/notifications, try to connect to WebSocket only if user is logged in
-      const user = await getCurrentUser().catch(() => null);
-      if (!user) return;
 
     // Try to connect to WebSocket server (skip in production if not configured)
     const isProduction = import.meta.env.PROD;
@@ -138,7 +136,7 @@ export const WebSocketProvider = ({ children }) => {
         const processed = processWebhookPayload(payload);
         
         // Only add notifications that belong to the current user
-        if (currentUser && processed.notification.user_id === currentUser.id) {
+        if (authUser && processed.notification.user_id === authUser.id) {
           console.log('Received webhook notification for current user:', {
             id: processed.notification.id,
             message: processed.notification.message,
@@ -164,7 +162,7 @@ export const WebSocketProvider = ({ children }) => {
             new Notification(processed.notification.message);
           }
         } else {
-          console.log('Ignoring notification for different user:', processed.notification.user_id, 'current user:', currentUser?.id);
+          console.log('Ignoring notification for different user:', processed.notification.user_id, 'current user:', authUser?.id);
         }
       } catch (error) {
         console.error('Failed to process webhook payload:', error);
@@ -293,18 +291,18 @@ export const WebSocketProvider = ({ children }) => {
         clearInterval(pollingInterval);
       }
     };
-  }, []);
+  }, [authUser, authLoading, pollNotifications]);
 
   // Initial polling setup (in case WebSocket never connects)
   useEffect(() => {
-    if (currentUser && !isConnected && !pollingInterval) {
+    if (authUser && !isConnected && !pollingInterval) {
       console.log('Setting up initial polling fallback');
       const interval = setInterval(pollNotifications, 30000);
       setPollingInterval(interval);
       
       return () => clearInterval(interval);
     }
-  }, [isConnected, pollingInterval, currentUser]);
+  }, [isConnected, pollingInterval, authUser]);
 
   const clearNotifications = () => {
     setNotifications([]);
@@ -335,7 +333,7 @@ export const WebSocketProvider = ({ children }) => {
     isConnected,
     notifications,
     realtimeData,
-    currentUser,
+    currentUser: authUser,
     clearNotifications,
     markNotificationAsRead,
     getRealtimeData

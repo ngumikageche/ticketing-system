@@ -4,11 +4,13 @@ import { createAttachment } from '../api/attachments.js';
 import { uploadFileToCloudinary } from '../api/uploads.js';
 import { getTickets } from '../api/tickets.js';
 import { getCurrentUser } from '../api/users.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 export default function Testing() {
   const [testingSessions, setTestingSessions] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const { currentUser: authCurrentUser, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -23,16 +25,11 @@ export default function Testing() {
   }, [filters]);
 
   useEffect(() => {
-    const loadCurrent = async () => {
-      try {
-        const cur = await getCurrentUser();
-        setCurrentUser(cur);
-      } catch (err) {
-        // not logged in or failed - ignore gracefully
-      }
-    };
-    loadCurrent();
-  }, []);
+    // Use auth current user from context if available
+    if (!authLoading && authCurrentUser) {
+      setCurrentUser(authCurrentUser);
+    }
+  }, [authLoading, authCurrentUser]);
 
   const loadData = async () => {
     try {

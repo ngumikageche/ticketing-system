@@ -29,6 +29,12 @@ export async function fetchWithAuth(url, opts = {}) {
   let response = await fetch(url, options);
   if (response.status !== 401) return response;
 
+  // If already on login page, don't try to refresh, just fail
+  if (window.location && window.location.pathname === '/login') {
+    try { onAuthFailure(); } catch (e) {}
+    return response;
+  }
+
   // Try to refresh once
   try {
   await refreshAccess();
