@@ -8,6 +8,7 @@ from app.models.base import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import uuid
 from functools import wraps
+from app import cache
 
 tickets_bp = Blueprint('tickets', __name__)
 
@@ -33,6 +34,7 @@ def _get_or_404(model, id_):
 
 
 @tickets_bp.route('/', methods=['GET'])
+@cache.cached(timeout=300, key_prefix='tickets_list')
 def list_tickets():
     tickets = Ticket.active().all()
     return jsonify([t.to_dict() for t in tickets])
@@ -92,6 +94,9 @@ def create_ticket():
             db.session.rollback()
         except Exception:
             pass
+
+    # Invalidate cache
+    cache.delete('tickets_list')
 
     return jsonify(ticket.to_dict()), 201
 

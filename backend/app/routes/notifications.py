@@ -3,11 +3,13 @@ from app.models.notification import Notification
 from app.models.user import User
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import uuid
+from app import cache
 
 notifications_bp = Blueprint('notifications', __name__)
 
 
 @notifications_bp.route('/', methods=['GET'])
+@cache.cached(timeout=60, key_prefix='notifications_list')
 @jwt_required()
 def list_notifications():
     identity = get_jwt_identity()
@@ -32,6 +34,8 @@ def mark_as_read(id_):
         abort(404, 'notification not found')
     notification.is_read = True
     notification.save()
+    # Invalidate cache
+    cache.delete('notifications_list')
     return jsonify(notification.to_dict())
 
 
@@ -47,6 +51,8 @@ def delete_notification(id_):
     if not notification:
         abort(404, 'notification not found')
     notification.delete(soft=True)
+    # Invalidate cache
+    cache.delete('notifications_list')
     return '', 204
 
 

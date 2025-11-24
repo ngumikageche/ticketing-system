@@ -22,6 +22,24 @@ except Exception:
     def CORS(app):
         return None
 
+try:
+    from flask_caching import Cache
+    import redis
+    CACHING_AVAILABLE = True
+except Exception:
+    class _NoOpCache:
+        def init_app(self, *a, **k):
+            return None
+        def cached(self, *a, **k):
+            def decorator(func):
+                return func
+            return decorator
+        def delete(self, *args, **kwargs):
+            pass
+    Cache = _NoOpCache
+    redis = None
+    CACHING_AVAILABLE = False
+
 # Define fallback classes
 class _NoOpSocketIO:
     def __init__(self, *args, **kwargs):
@@ -62,6 +80,7 @@ from app.models.base import db
 
 migrate = Migrate()
 jwt = JWTManager()
+cache = Cache() if CACHING_AVAILABLE else _NoOpCache()
 # Central list of allowed origins used by both HTTP CORS (Flask-CORS)
 # and Socket.IO (engineio). Keep this list in one place to ensure they
 # always match. Avoid using "*" when supports_credentials=True.
@@ -114,6 +133,13 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    cache.init_app(app, config={'CACHE_TYPE': 'redis', 'CACHE_REDIS_URL': app.config['REDIS_URL']})
+
+    # Initialize Redis client
+    if CACHING_AVAILABLE:
+        app.redis_client = redis.from_url(app.config['REDIS_URL'])
+    else:
+        app.redis_client = None
 
     # Configure HTTP CORS for the Flask application. Flask-CORS will add the
     # appropriate Access-Control-* headers to responses and automatically
