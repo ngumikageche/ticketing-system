@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { uploadFileToCloudinary } from '../api/uploads.js';
 import { X } from 'lucide-react';
 
@@ -65,32 +66,32 @@ export default function TicketModal({ open, onClose, onSubmit, mode = 'create', 
     
     // Validate required fields
     if (!form.subject.trim()) {
-      alert('Subject is required');
+      toast.error('Subject is required');
       return;
     }
     
     if (requesterType === 'registered' && !form.requester_id) {
-      alert('Please select a registered requester');
+      toast.error('Please select a registered requester');
       return;
     }
     
     if (requesterType === 'external' && !form.requester_name.trim()) {
-      alert('Requester name is required for external requesters');
+      toast.error('Requester name is required for external requesters');
       return;
     }
     
     if (!form.priority) {
-      alert('Please select a priority');
+      toast.error('Please select a priority');
       return;
     }
     
     if (!form.status) {
-      alert('Please select a status');
+      toast.error('Please select a status');
       return;
     }
     
     if (!form.description.trim()) {
-      alert('Description is required');
+      toast.error('Description is required');
       return;
     }
     
@@ -117,8 +118,9 @@ export default function TicketModal({ open, onClose, onSubmit, mode = 'create', 
       setAttachments(prev => [...prev, createdMedia]);
       setAttachmentFile(null);
       setAttachmentType('document');
+      toast.success('Attachment uploaded successfully!');
     } catch (err) {
-      alert('Failed to upload attachment: ' + err.message);
+      toast.error('Failed to upload attachment: ' + err.message);
     } finally {
       setUploading(false);
     }

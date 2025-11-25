@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 import { login as apiLogin, logout as apiLogout, refreshAccess as apiRefresh, getSecurityQuestions } from '../api/auth.js';
 import { getCurrentUser as apiGetCurrentUser } from '../api/users.js';
 import fetchWithAuth from '../api/fetchWithAuth.js';
@@ -70,20 +71,26 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = useCallback(async (email, password) => {
-    const data = await apiLogin(email, password);
-    // data.user returned; set current user
-    setCurrentUser(data.user);
-    // determine expiry from returned access token if available
-    if (data.access_token) {
-      const payload = decodeJwtPayload(data.access_token);
-      if (payload && payload.exp) {
-        const exp = payload.exp * 1000;
-        setExpiresAt(exp);
-        // start timer for session expiry warning
-        scheduleExpiryTimer(exp);
+    try {
+      const data = await apiLogin(email, password);
+      // data.user returned; set current user
+      setCurrentUser(data.user);
+      toast.success('Login successful');
+      // determine expiry from returned access token if available
+      if (data.access_token) {
+        const payload = decodeJwtPayload(data.access_token);
+        if (payload && payload.exp) {
+          const exp = payload.exp * 1000;
+          setExpiresAt(exp);
+          // start timer for session expiry warning
+          scheduleExpiryTimer(exp);
+        }
       }
+      return data.user;
+    } catch (error) {
+      toast.error('Login failed: ' + (error.message || 'Invalid credentials'));
+      throw error;
     }
-    return data.user;
   }, []);
 
   const logout = useCallback(async () => {
@@ -92,7 +99,8 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       // ignore
     }
-  setCurrentUser(null);
+    setCurrentUser(null);
+    toast.success('Logged out successfully');
     // redirect to login via SPA navigation helper
     navigateTo('/login');
   }, []);
@@ -133,6 +141,7 @@ export const AuthProvider = ({ children }) => {
       return true;
     } catch (err) {
       setCurrentUser(null);
+      toast.error('Session expired, please login again');
       return false;
     }
   }, []);

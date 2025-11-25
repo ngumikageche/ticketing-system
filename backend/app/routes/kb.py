@@ -68,7 +68,8 @@ def create_article():
 
         logging.exception('error running kb_article.created hooks')
     
-    return jsonify(a.to_dict()), 201
+    articles = KnowledgeBaseArticle.active().all()
+    return jsonify([a.to_dict() for a in articles]), 201
 
 
 @kb_bp.route('/articles/<id_>', methods=['GET'])
@@ -116,7 +117,8 @@ def update_article(id_):
 
         logging.exception('error running kb_article.updated hooks')
     
-    return jsonify(a.to_dict())
+    articles = KnowledgeBaseArticle.active().all()
+    return jsonify([a.to_dict() for a in articles])
 
 
 @kb_bp.route('/articles/<id_>', methods=['DELETE'])
@@ -162,7 +164,8 @@ def create_tag():
         abort(400, 'tag already exists')
     t = Tag(name=data['name'], color=data.get('color'))
     t.save()
-    return jsonify(t.to_dict()), 201
+    tags = Tag.active().all()
+    return jsonify([t.to_dict() for t in tags]), 201
 
 
 @kb_bp.route('/tags/<id_>', methods=['GET'])
@@ -180,7 +183,8 @@ def update_tag(id_):
     if 'color' in data:
         t.color = data['color']
     t.save()
-    return jsonify(t.to_dict())
+    tags = Tag.active().all()
+    return jsonify([t.to_dict() for t in tags])
 
 
 @kb_bp.route('/tags/<id_>', methods=['DELETE'])

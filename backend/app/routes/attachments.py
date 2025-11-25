@@ -111,7 +111,10 @@ def create_attachment():
     # Keep backward-compatible fields in the payload
     payload = a.to_dict()
     payload['type'] = data.get('type', payload.get('resource_type') or 'raw')
-    return jsonify(payload), 201
+    
+    # Return all attachments
+    items = Media.active().all()
+    return jsonify([a.to_dict() for a in items]), 201
 
 
 @attachments_bp.route('/<id_>', methods=['GET'])
@@ -140,7 +143,10 @@ def update_attachment(id_):
     
     payload = a.to_dict()
     payload['type'] = data.get('type', payload.get('resource_type') or 'raw')
-    return jsonify(payload)
+    
+    # Return all attachments
+    items = Media.active().all()
+    return jsonify([a.to_dict() for a in items])
 
 
 @attachments_bp.route('/<id_>', methods=['DELETE'])

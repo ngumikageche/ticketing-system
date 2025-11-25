@@ -43,25 +43,42 @@ export default function Reports() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {stats.map((stat, i) => (
-          <div key={i} className="bg-white p-5 rounded-lg shadow-sm">
-            <p className="text-sm text-gray-600">{stat.label}</p>
-            <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+          <div key={i} className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <p className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow-sm">
-        <h3 className="text-lg font-medium mb-4">Tickets by Month</h3>
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-medium mb-4 text-gray-900 dark:text-white">Tickets by Month</h3>
         {chartData.length === 0 ? (
-          <div className="text-sm text-gray-500 py-16 text-center">No monthly ticket data available.</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 py-16 text-center">No monthly ticket data available.</div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="tickets" fill="#3b82f6" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-600" />
+              <XAxis dataKey="month" stroke="#6b7280" className="dark:stroke-gray-400" />
+              <YAxis stroke="#6b7280" className="dark:stroke-gray-400" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'rgb(255 255 255)',
+                  border: '1px solid rgb(229 231 235)',
+                  borderRadius: '0.5rem',
+                  color: 'rgb(17 24 39)'
+                }}
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-2 shadow-lg">
+                        <p className="text-gray-900 dark:text-white">{`${label}: ${payload[0].value}`}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar dataKey="tickets" fill="#3b82f6" className="dark:fill-blue-500" />
             </BarChart>
           </ResponsiveContainer>
         )}

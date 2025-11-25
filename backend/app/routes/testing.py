@@ -93,7 +93,8 @@ def create_testing():
                 db.session.add(media)
         db.session.commit()
     
-    return jsonify(testing.to_dict()), 201
+    testing_sessions = Testing.active().order_by(Testing.created_at.desc()).all()
+    return jsonify([t.to_dict() for t in testing_sessions]), 201
 
 
 @testing_bp.route('/<id_>', methods=['GET'])
@@ -145,7 +146,8 @@ def update_testing(id_):
                 db.session.add(media)
         db.session.commit()
     
-    return jsonify(testing.to_dict())
+    testing_sessions = Testing.active().order_by(Testing.created_at.desc()).all()
+    return jsonify([t.to_dict() for t in testing_sessions])
 
 
 @testing_bp.route('/<id_>', methods=['DELETE'])

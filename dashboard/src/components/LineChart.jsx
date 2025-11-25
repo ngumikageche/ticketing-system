@@ -7,7 +7,7 @@ const mockData = [
   { date: 'May 7', tickets: 48 },
 ];
 
-export default function LineChart({ data }) {
+export default function LineChart({ data, animate = true }) {
   const chartData = data && data.length > 0 ? data.map(item => ({
     date: item.date,
     created: item.created,

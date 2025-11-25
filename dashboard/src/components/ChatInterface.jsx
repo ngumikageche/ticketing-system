@@ -3,6 +3,7 @@ import { Send, Paperclip, Smile, MessageCircle, Users, Ticket, ArrowLeft } from 
 import { getConversationMessages, sendConversationMessage, getTicketMessages, sendTicketMessage, getConversation, markConversationAsRead } from '../api/conversations.js';
 import { getCurrentUser, getUser } from '../api/users.js';
 import { useWebSocket } from '../contexts/WebSocketContext.jsx';
+import { useSettings } from '../contexts/SettingsContext.jsx';
 
 const ChatInterface = ({ conversation, onBack }) => {
   const [messages, setMessages] = useState([]);
@@ -19,6 +20,7 @@ const ChatInterface = ({ conversation, onBack }) => {
   const sortMessages = (list) => (Array.isArray(list) ? list.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) : []);
   const markedConversationsRef = useRef(new Set());
   const { socket, getRealtimeData } = useWebSocket();
+  const { settings } = useSettings();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -173,6 +175,8 @@ const ChatInterface = ({ conversation, onBack }) => {
   }, [socket, conversation]);
 
   const scrollToBottom = (behavior = 'smooth') => {
+    if (!settings.auto_scroll_messages) return;
+
     const el = messagesEndRef.current;
     if (el) {
       try {
@@ -265,18 +269,18 @@ const ChatInterface = ({ conversation, onBack }) => {
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <div className="text-center text-gray-500">
-          <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-          <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
-          <p>Choose a conversation from the list to start messaging</p>
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center text-gray-500 dark:text-gray-400">
+          <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Select a conversation</h3>
+          <p className="text-gray-600 dark:text-gray-400">Choose a conversation from the list to start messaging</p>
         </div>
       </div>
     );
   }
 
-  if (loading) return <div className="flex-1 p-4">Loading messages...</div>;
-  if (error) return <div className="flex-1 p-4 text-red-500">Error: {error}</div>;
+  if (loading) return <div className="flex-1 p-4 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">Loading messages...</div>;
+  if (error) return <div className="flex-1 p-4 bg-gray-50 dark:bg-gray-900 text-red-500 dark:text-red-400">Error: {error}</div>;
 
   const messageGroups = groupMessagesByDate(messages);
 
@@ -320,25 +324,25 @@ const ChatInterface = ({ conversation, onBack }) => {
   };
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-white overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* Chat Header - Always visible */}
-      <div className="flex-shrink-0 p-2 sm:p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
+      <div className="flex-shrink-0 p-2 sm:p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           {onBack && (
             <button
               onClick={onBack}
-              className="md:hidden p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              className="md:hidden p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
-          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-            {conversation.type === 'direct' && <MessageCircle className="w-5 h-5 text-gray-600" />}
-            {conversation.type === 'group' && <Users className="w-5 h-5 text-gray-600" />}
-            {conversation.type === 'ticket' && <Ticket className="w-5 h-5 text-gray-600" />}
+          <div className="w-10 h-10 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center">
+            {conversation.type === 'direct' && <MessageCircle className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
+            {conversation.type === 'group' && <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
+            {conversation.type === 'ticket' && <Ticket className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
           </div>
           <div>
-            <h3 className="font-medium text-gray-900">
+            <h3 className="font-medium text-gray-900 dark:text-gray-100">
               {conversation.type === 'ticket'
                 ? `Ticket: ${conversation.title || conversation.ticket_id}`
                 : conversation.type === 'direct'
@@ -346,7 +350,7 @@ const ChatInterface = ({ conversation, onBack }) => {
                 : conversation.title || 'Untitled Conversation'
               }
             </h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               {conversation.type === 'group' && `${conversationDetails?.participants?.length || conversation.participants?.length || 0} members`}
               {conversation.type === 'ticket' && 'Support conversation'}
               {conversation.type === 'direct' && 'Direct message'}
@@ -356,11 +360,11 @@ const ChatInterface = ({ conversation, onBack }) => {
       </div>
 
   {/* Messages Area - Only this scrolls */}
-  <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4">
+  <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4 bg-gray-50 dark:bg-gray-900 min-h-0 pb-4">
         {Object.entries(messageGroups).map(([date, dateMessages]) => (
           <div key={date}>
             <div className="text-center mb-4">
-              <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+              <span className="inline-block px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs rounded-full">
                 {date}
               </span>
             </div>
@@ -384,8 +388,8 @@ const ChatInterface = ({ conversation, onBack }) => {
                   {!isCurrentUser && (
                     <div className="w-8 h-8 flex-shrink-0">
                       {showAvatar && (
-                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                        <span className="text-xs font-medium text-gray-600">
+                        <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
                           {senderName.charAt(0).toUpperCase()}
                         </span>
                         </div>
@@ -394,7 +398,7 @@ const ChatInterface = ({ conversation, onBack }) => {
                   )}
 
                   <div className={`max-w-full sm:max-w-xs lg:max-w-md ${isCurrentUser ? 'order-1' : 'order-2'}`}>
-                    <div className={`text-xs text-gray-500 mb-1 px-3 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
+                    <div className={`text-xs text-gray-500 dark:text-gray-400 mb-1 px-3 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
                       {senderName}
                     </div>
 
@@ -402,22 +406,22 @@ const ChatInterface = ({ conversation, onBack }) => {
                       className={`px-3 py-2 rounded-lg ${
                         isCurrentUser
                           ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 text-gray-900'
+                          : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600'
                       }`}
                     >
                       <p className="text-sm">{message.content}</p>
                     </div>
 
-                    <div className={`text-xs text-gray-500 mt-1 px-3 flex items-center justify-between ${
+                    <div className={`text-xs text-gray-500 dark:text-gray-400 mt-1 px-3 flex items-center justify-between ${
                       isCurrentUser ? 'text-right' : 'text-left'
                     }`}>
                       <span>{formatTime(message.created_at)}</span>
-                      {isCurrentUser && message.is_read !== undefined && (
+                      {isCurrentUser && settings.show_read_receipts && message.is_read !== undefined && (
                         <span className="ml-2 flex items-center">
                           {message.is_read ? (
-                            <span className="text-blue-500">✓✓</span>
+                            <span className="text-blue-500 dark:text-blue-400">✓✓</span>
                           ) : (
-                            <span className="text-gray-400">✓</span>
+                            <span className="text-gray-400 dark:text-gray-500">✓</span>
                           )}
                         </span>
                       )}
@@ -442,11 +446,11 @@ const ChatInterface = ({ conversation, onBack }) => {
       </div>
 
       {/* Message Input - Always visible */}
-      <div className="flex-shrink-0 p-2 sm:p-4 border-t border-gray-200 bg-white sticky bottom-0 z-10">
+      <div className="flex-shrink-0 p-2 sm:p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 sticky bottom-0 z-10">
         <form onSubmit={handleSendMessage} className="flex gap-1 sm:gap-2">
           <button
             type="button"
-            className="p-1 sm:p-2 text-gray-400 hover:text-gray-600"
+            className="p-1 sm:p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
             disabled
           >
             <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -458,14 +462,14 @@ const ChatInterface = ({ conversation, onBack }) => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type a message..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               disabled={sending}
             />
           </div>
 
           <button
             type="button"
-            className="p-1 sm:p-2 text-gray-400 hover:text-gray-600"
+            className="p-1 sm:p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
             disabled
           >
             <Smile className="w-4 h-4 sm:w-5 sm:h-5" />

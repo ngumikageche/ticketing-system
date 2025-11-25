@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { getNotifications, markNotificationAsRead, deleteNotification } from '../api/notifications.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { getTickets } from '../api/tickets.js';
@@ -48,7 +49,7 @@ export default function Notifications() {
         n.id === id ? { ...n, is_read: true } : n
       ));
     } catch (error) {
-      alert('Failed to mark notification as read: ' + error.message);
+      toast.error('Failed to mark notification as read: ' + error.message);
     }
   };
 
@@ -59,15 +60,16 @@ export default function Notifications() {
         await markNotificationAsRead(notification.id);
       }
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      toast.success('All notifications marked as read!');
     } catch (error) {
-      alert('Failed to mark all notifications as read: ' + error.message);
+      toast.error('Failed to mark all notifications as read: ' + error.message);
     }
   };
 
   const handleDeleteAllRead = async () => {
     const readNotifications = notifications.filter(n => n.is_read);
     if (readNotifications.length === 0) {
-      alert('No read notifications to delete.');
+      toast('No read notifications to delete.');
       return;
     }
     
@@ -79,8 +81,9 @@ export default function Notifications() {
       }
       setNotifications(prev => prev.filter(n => !n.is_read));
       setCurrentPage(1); // Reset to first page
+      toast.success('All read notifications deleted!');
     } catch (error) {
-      alert('Failed to delete read notifications: ' + error.message);
+      toast.error('Failed to delete read notifications: ' + error.message);
     }
   };
 
@@ -94,8 +97,9 @@ export default function Notifications() {
       if (currentNotifications.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
       }
+      toast.success('Notification deleted!');
     } catch (error) {
-      alert('Failed to delete notification: ' + error.message);
+      toast.error('Failed to delete notification: ' + error.message);
     }
   };
 
@@ -233,14 +237,14 @@ export default function Notifications() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Notifications</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Notifications</h1>
         <div className="flex gap-3">
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
             >
               Mark All as Read
             </button>
@@ -248,7 +252,7 @@ export default function Notifications() {
           {notifications.some(n => n.is_read) && (
             <button
               onClick={handleDeleteAllRead}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 flex items-center gap-2"
               title="Delete all read notifications"
             >
               <Trash2 className="w-4 h-4" />
@@ -260,29 +264,33 @@ export default function Notifications() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-600">{notifications.length}</div>
-          <div className="text-sm text-gray-600">Total Notifications</div>
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{notifications.length}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Total Notifications</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-red-600">{unreadCount}</div>
-          <div className="text-sm text-gray-600">Unread</div>
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400">{unreadCount}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Unread</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-green-600">{notifications.filter(n => n.is_read).length}</div>
-          <div className="text-sm text-gray-600">Read</div>
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">{notifications.filter(n => n.is_read).length}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Read</div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6 border border-gray-200 dark:border-gray-700">
         <div className="flex gap-4">
           <button
             onClick={() => {
               setFilter('all');
               setCurrentPage(1);
             }}
-            className={`px-4 py-2 rounded-lg ${filter === 'all' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              filter === 'all' 
+                ? 'bg-blue-600 text-white dark:bg-blue-500' 
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+            }`}
           >
             All ({notifications.length})
           </button>
@@ -291,7 +299,11 @@ export default function Notifications() {
               setFilter('unread');
               setCurrentPage(1);
             }}
-            className={`px-4 py-2 rounded-lg ${filter === 'unread' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              filter === 'unread' 
+                ? 'bg-blue-600 text-white dark:bg-blue-500' 
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+            }`}
           >
             Unread ({unreadCount})
           </button>
@@ -300,7 +312,11 @@ export default function Notifications() {
               setFilter('read');
               setCurrentPage(1);
             }}
-            className={`px-4 py-2 rounded-lg ${filter === 'read' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              filter === 'read' 
+                ? 'bg-blue-600 text-white dark:bg-blue-500' 
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+            }`}
           >
             Read ({notifications.filter(n => n.is_read).length})
           </button>
@@ -308,39 +324,39 @@ export default function Notifications() {
       </div>
 
       {/* Notifications List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border border-gray-200 dark:border-gray-700">
         {loading ? (
-          <div className="p-8 text-center">Loading notifications...</div>
+          <div className="p-8 text-center text-gray-500 dark:text-gray-400">Loading notifications...</div>
         ) : filteredNotifications.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
             {filter === 'all' ? 'No notifications found' :
              filter === 'unread' ? 'No unread notifications' :
              'No read notifications'}
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {currentNotifications
               .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
               .map(notification => (
-              <div key={notification.id} className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${!notification.is_read ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`} onClick={() => handleNotificationClick(notification)}>
+              <div key={notification.id} className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${!notification.is_read ? 'bg-blue-50 dark:bg-gray-700 border-l-4 border-blue-500 dark:border-blue-400' : ''}`} onClick={() => handleNotificationClick(notification)}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
                         {notification.type === 'message_on_conversation' 
                           ? `💬 ${notification.message.replace('"conversation"', 'a conversation')}`
                           : notification.message
                         }
                       </p>
                       {!notification.is_read && (
-                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">Unread</span>
+                        <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">Unread</span>
                       )}
                       {notification.type === 'message_on_conversation' && (
-                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">Conversation</span>
+                        <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">Conversation</span>
                       )}
                     </div>
                     
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
                       {new Date(notification.created_at).toLocaleString()}
                     </div>
                   </div>
@@ -351,7 +367,7 @@ export default function Notifications() {
                           e.stopPropagation();
                           handleMarkAsRead(notification.id);
                         }}
-                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                       >
                         Mark as Read
                       </button>
@@ -360,7 +376,7 @@ export default function Notifications() {
                           e.stopPropagation();
                           handleDeleteNotification(notification.id);
                         }}
-                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
                         title="Delete notification"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -373,7 +389,7 @@ export default function Notifications() {
                         e.stopPropagation();
                         handleDeleteNotification(notification.id);
                       }}
-                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 ml-4"
+                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 ml-4"
                       title="Delete notification"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -388,26 +404,26 @@ export default function Notifications() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-b-lg">
+        <div className="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6 rounded-b-lg">
           <div className="flex-1 flex justify-between sm:hidden">
             <button
               onClick={handlePrevPage}
               disabled={currentPage === 1}
-              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
             <button
               onClick={handleNextPage}
               disabled={currentPage === totalPages}
-              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
             </button>
           </div>
           <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
                 Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
                 <span className="font-medium">{Math.min(endIndex, filteredNotifications.length)}</span> of{' '}
                 <span className="font-medium">{filteredNotifications.length}</span> notifications
@@ -418,7 +434,7 @@ export default function Notifications() {
                 <button
                   onClick={handlePrevPage}
                   disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <span className="sr-only">Previous</span>
                   ‹
@@ -427,10 +443,10 @@ export default function Notifications() {
                   <button
                     key={page}
                     onClick={() => handlePageChange(page)}
-                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors ${
                       page === currentPage
-                        ? 'z-10 bg-primary border-primary text-white'
-                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        ? 'z-10 bg-blue-600 border-blue-600 text-white dark:bg-blue-500 dark:border-blue-500'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     {page}
@@ -439,7 +455,7 @@ export default function Notifications() {
                 <button
                   onClick={handleNextPage}
                   disabled={currentPage === totalPages}
-                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <span className="sr-only">Next</span>
                   ›

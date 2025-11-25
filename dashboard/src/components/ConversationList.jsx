@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { MessageCircle, Users, Ticket, Plus, Trash2 } from 'lucide-react';
 import { getConversations, getConversation, deleteConversation, getConversationMessages } from '../api/conversations.js';
 import { getCurrentUser } from '../api/users.js';
@@ -66,9 +67,10 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
       if (selectedConversationId === conversationId) {
         onSelectConversation(null);
       }
+      toast.success('Conversation deleted successfully!');
     } catch (err) {
       console.error('Failed to delete conversation:', err);
-      alert('Failed to delete conversation. Please try again.');
+      toast.error('Failed to delete conversation. Please try again.');
     } finally {
       setDeletingConversationId(null);
     }
@@ -205,41 +207,41 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
   if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
 
   return (
-    <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col h-full">
-      <div className="p-4 border-b border-gray-200">
+    <div className="w-full md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Messages</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Messages</h2>
           <button 
             onClick={() => setShowCreateModal(true)}
-            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
             <Plus className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
         {/* Direct Messages */}
         {groupedConversations.direct && groupedConversations.direct.length > 0 && (
           <div className="p-2">
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+            <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
               Direct Messages
             </h3>
             {groupedConversations.direct.map(conversation => (
               <div key={conversation.id} className="relative group">
                 <button
                   onClick={() => handleSelectConversation(conversation)}
-                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
-                    selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                    selectedConversationId === conversation.id ? 'bg-blue-50 dark:bg-gray-700 border-l-4 border-blue-500 dark:border-blue-400' : ''
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="text-gray-600">
+                    <div className="text-gray-600 dark:text-gray-400">
                       {getConversationIcon(conversation.type)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {getConversationDisplayName(conversation)}
                         </p>
                         {unreadCounts[conversation.id] > 0 && (
@@ -248,7 +250,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                         Last message preview...
                       </p>
                     </div>
@@ -260,7 +262,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
                     handleDeleteConversation(conversation.id);
                   }}
                   disabled={deletingConversationId === conversation.id}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-opacity disabled:opacity-50"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-opacity disabled:opacity-50"
                   title="Delete conversation"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -273,24 +275,24 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
         {/* Group Chats */}
         {groupedConversations.group && groupedConversations.group.length > 0 && (
           <div className="p-2">
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+            <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
               Groups
             </h3>
             {groupedConversations.group.map(conversation => (
               <div key={conversation.id} className="relative group">
                 <button
                   onClick={() => onSelectConversation(conversation)}
-                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
-                    selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                    selectedConversationId === conversation.id ? 'bg-blue-50 dark:bg-gray-700 border-l-4 border-blue-500 dark:border-blue-400' : ''
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="text-gray-600">
+                    <div className="text-gray-600 dark:text-gray-400">
                       {getConversationIcon(conversation.type)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {getConversationDisplayName(conversation)}
                         </p>
                         {unreadCounts[conversation.id] > 0 && (
@@ -299,7 +301,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                         Last message preview...
                       </p>
                     </div>
@@ -311,7 +313,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
                     handleDeleteConversation(conversation.id);
                   }}
                   disabled={deletingConversationId === conversation.id}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-opacity disabled:opacity-50"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-opacity disabled:opacity-50"
                   title="Delete conversation"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -324,24 +326,24 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
         {/* Ticket Chats */}
         {groupedConversations.ticket && groupedConversations.ticket.length > 0 && (
           <div className="p-2">
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+            <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
               Ticket Chats
             </h3>
             {groupedConversations.ticket.map(conversation => (
               <div key={conversation.id} className="relative group">
                 <button
                   onClick={() => handleSelectConversation(conversation)}
-                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-50 ${
-                    selectedConversationId === conversation.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  className={`w-full text-left p-3 rounded-lg mb-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                    selectedConversationId === conversation.id ? 'bg-blue-50 dark:bg-gray-700 border-l-4 border-blue-500 dark:border-blue-400' : ''
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="text-gray-600">
+                    <div className="text-gray-600 dark:text-gray-400">
                       {getConversationIcon(conversation.type)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {getConversationDisplayName(conversation)}
                         </p>
                         {unreadCounts[conversation.id] > 0 && (
@@ -350,7 +352,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                         Last message preview...
                       </p>
                     </div>
@@ -362,7 +364,7 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
                     handleDeleteConversation(conversation.id);
                   }}
                   disabled={deletingConversationId === conversation.id}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-opacity disabled:opacity-50"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-opacity disabled:opacity-50"
                   title="Delete conversation"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -373,10 +375,10 @@ const ConversationList = ({ onSelectConversation, selectedConversationId, initia
         )}
 
         {conversations.length === 0 && (
-          <div className="p-4 text-center text-gray-500">
-            <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-            <p>No conversations yet</p>
-            <p className="text-sm">Start a conversation to get help</p>
+          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+            <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+            <p className="text-gray-900 dark:text-white">No conversations yet</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Start a conversation to get help</p>
           </div>
         )}
       </div>

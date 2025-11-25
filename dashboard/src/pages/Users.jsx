@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { getUsers, createUser, updateUser, deleteUser } from '../api/users.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -65,8 +66,9 @@ export default function Users() {
       try {
         await deleteUser(user.id);
         fetchUsers();
+        toast.success('User deleted successfully!');
       } catch (err) {
-        alert('Error deleting user: ' + err.message);
+        toast.error('Error deleting user: ' + err.message);
       }
     }
   };
@@ -78,13 +80,15 @@ export default function Users() {
       if (!dataToSend.password) delete dataToSend.password; // Don't send empty password
       if (editingUser) {
         await updateUser(editingUser.id, dataToSend);
+        toast.success('User updated successfully!');
       } else {
         await createUser(dataToSend);
+        toast.success('User created successfully!');
       }
       setShowModal(false);
       fetchUsers();
     } catch (err) {
-      alert('Error saving user: ' + err.message);
+      toast.error('Error saving user: ' + err.message);
     }
   };
 

@@ -85,7 +85,8 @@ def signup():
                     existing_user.set_security_answer(answer.strip().lower())
                     break
             existing_user.save()
-            return jsonify(existing_user.to_dict()), 200
+            users = User.active().all()
+            return jsonify([u.to_dict() for u in users]), 200
         else:
             abort(409, 'user already exists')
     
@@ -114,6 +115,13 @@ def signup():
     if current_app.config.get('ENV') != 'production':
         body['access_token'] = access
         body['refresh_token'] = refresh
+    resp = make_response(jsonify(body), 201)
+    set_access_cookies(resp, access)
+    set_refresh_cookies(resp, refresh)
+    
+    # Return all users instead of just the created user
+    users = User.active().all()
+    body['users'] = [u.to_dict() for u in users]
     resp = make_response(jsonify(body), 201)
     set_access_cookies(resp, access)
     set_refresh_cookies(resp, refresh)

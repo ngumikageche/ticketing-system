@@ -98,7 +98,8 @@ def create_ticket():
     # Invalidate cache
     cache.delete('tickets_list')
 
-    return jsonify(ticket.to_dict()), 201
+    tickets = Ticket.active().all()
+    return jsonify([t.to_dict() for t in tickets]), 201
 
 
 @tickets_bp.route('/<id_>', methods=['GET'])
@@ -139,7 +140,8 @@ def update_ticket(id_):
 
         logging.exception('error running ticket.updated hooks')
     
-    return jsonify(t.to_dict())
+    tickets = Ticket.active().all()
+    return jsonify([t.to_dict() for t in tickets])
 
 
 @tickets_bp.route('/<id_>', methods=['DELETE'])
@@ -215,4 +217,7 @@ def create_ticket_message(ticket_id):
         import logging
         logging.exception('error running comment.created hooks')
 
-    return jsonify(c.to_dict()), 201
+    ticket_dict = ticket.to_dict()
+    comments = Comment.active().filter_by(ticket_id=ticket.id).order_by(Comment.created_at).all()
+    ticket_dict['messages'] = [c.to_dict() for c in comments]
+    return jsonify(ticket_dict), 201

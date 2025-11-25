@@ -193,15 +193,27 @@ def create_conversation():
         import logging
         logging.exception('error running conversation.created hooks')
 
-    conv_dict = conv.to_dict()
-    if conv.type == 'direct':
-        # For direct conversations, set title to the other participant's name
-        other_participants = [p for p in conv.participants if str(p.user_id) != str(created_by_id)]
-        if other_participants:
-            other_user = other_participants[0].user
-            conv_dict['title'] = other_user.name or other_user.email
+    # Return all conversations for the creator
+    # Subquery of conversation ids where the creator is a participant
+    participant_conv_ids = db.session.query(ConversationParticipant.conversation_id).filter_by(user_id=created_by_id)
 
-    return jsonify(conv_dict), 201
+    # Include conversations that are not direct OR where the user is a participant
+    conversations = Conversation.active().filter(
+        (Conversation.type != 'direct') | (Conversation.id.in_(participant_conv_ids))
+    ).all()
+
+    result = []
+    for c in conversations:
+        conv_dict = c.to_dict()
+        if c.type == 'direct':
+            # For direct conversations, set title to the other participant's name
+            other_participants = [p for p in c.participants if str(p.user_id) != str(created_by_id)]
+            if other_participants:
+                other_user = other_participants[0].user
+                conv_dict['title'] = other_user.name or other_user.email
+        result.append(conv_dict)
+
+    return jsonify(result), 201
 
 
 @conversations_bp.route('/<id_>/messages', methods=['GET'])
@@ -292,7 +304,18 @@ def create_message(id_):
         import logging
         logging.exception('error running message.created hooks')
 
-    return jsonify(m.to_dict()), 201
+    # Return the conversation with messages
+    conv_dict = conv.to_dict()
+    if conv.type == 'direct':
+        # For direct conversations, set title to the other participant's name
+        other_participants = [p for p in conv.participants if str(p.user_id) != str(sender_id)]
+        if other_participants:
+            other_user = other_participants[0].user
+            conv_dict['title'] = other_user.name or other_user.email
+
+    messages = Message.active().filter_by(conversation_id=conv.id).order_by(Message.created_at).all()
+    conv_dict['messages'] = [msg.to_dict() for msg in messages]
+    return jsonify(conv_dict), 201
 
 
 @conversations_bp.route('/<conv_id>/messages/<message_id>/read', methods=['POST'])

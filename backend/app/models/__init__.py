@@ -5,6 +5,7 @@ requires model classes to be imported so they register their tables on
 `db.metadata`.
 """
 from .user import *  # noqa: F401,F403
+from .user_settings import *  # noqa: F401,F403
 from .ticket import *  # noqa: F401,F403
 from .comment import *  # noqa: F401,F403
 from .message import *  # noqa: F401,F403

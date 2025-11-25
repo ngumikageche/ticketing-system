@@ -37,6 +37,9 @@ class User(BaseModel):
     # Media uploaded by this user (uploader relation) - optional reverse relation
     uploaded_media = db.relationship('Media', foreign_keys='Media.uploaded_by', back_populates='uploader', cascade='none')
 
+    # User settings
+    settings = db.relationship('UserSettings', back_populates='user', uselist=False, cascade='all, delete-orphan')
+
     def set_password(self, password):
         self.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 

@@ -61,7 +61,8 @@ def create_comment():
 
         logging.exception('error running comment.created hooks')
 
-    return jsonify(c.to_dict()), 201
+    comments = Comment.active().all()
+    return jsonify([c.to_dict() for c in comments]), 201
 
 
 @comments_bp.route('/<id_>', methods=['GET'])
@@ -85,7 +86,8 @@ def update_comment(id_):
 
         logging.exception('error running comment.updated hooks')
     
-    return jsonify(c.to_dict())
+    comments = Comment.active().all()
+    return jsonify([c.to_dict() for c in comments])
 
 
 @comments_bp.route('/<id_>', methods=['DELETE'])

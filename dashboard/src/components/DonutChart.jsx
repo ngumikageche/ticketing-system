@@ -8,7 +8,7 @@ const mockData = [
 
 const colors = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6'];
 
-export default function DonutChart({ data }) {
+export default function DonutChart({ data, animate = true }) {
   const chartData = data && data.length > 0 ? data.map((item, index) => ({
     name: item.status,
     value: item.count,

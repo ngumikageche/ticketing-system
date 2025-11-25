@@ -66,7 +66,8 @@ def create_user():
                     related_type='user'
                 ).save()
             
-            return jsonify(existing_user.to_dict()), 200
+            users = User.active().all()
+            return jsonify([u.to_dict() for u in users]), 200
         else:
             abort(400, 'user with this email already exists')
 
@@ -78,7 +79,7 @@ def create_user():
     )
     if 'password' in data:
         u.set_password(data['password'])
-    u.save()
+    user.save()
     
     # emit hook for user created so handlers (including defaults) can
     # create notifications or perform other side-effects
@@ -89,7 +90,8 @@ def create_user():
 
         logging.exception('error running user.created hooks')
     
-    return jsonify(u.to_dict()), 201
+    users = User.active().all()
+    return jsonify([u.to_dict() for u in users]), 201
 
 
 @users_bp.route('/<id_>', methods=['GET'])
@@ -130,7 +132,8 @@ def update_user(id_):
 
         logging.exception('error running user.updated hooks')
     
-    return jsonify(u.to_dict())
+    users = User.active().all()
+    return jsonify([u.to_dict() for u in users])
 
 
 @users_bp.route('/<id_>', methods=['DELETE'])
@@ -195,6 +198,4 @@ def update_my_webhook():
     user.webhook_url = webhook_url
     user.save()
     
-    return jsonify({
-        'webhook_url': user.webhook_url
-    })
+    return jsonify(user.to_dict())

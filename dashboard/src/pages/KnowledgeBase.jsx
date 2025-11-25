@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { getArticles, createArticle, updateArticle, deleteArticle, getTags, createTag, updateTag, deleteTag } from '../api/kb.js';
 import { getUsers } from '../api/users.js';
+import { useSettings } from '../contexts/SettingsContext.jsx';
 
 export default function KnowledgeBase() {
+  const { settings } = useSettings();
   const [articles, setArticles] = useState([]);
   const [tags, setTags] = useState([]);
   const [users, setUsers] = useState([]);
@@ -81,8 +84,9 @@ export default function KnowledgeBase() {
       try {
         await deleteArticle(article.id);
         fetchArticles();
+        toast.success('Article deleted successfully!');
       } catch (err) {
-        alert('Error deleting article: ' + err.message);
+        toast.error('Error deleting article: ' + err.message);
       }
     }
   };
@@ -92,13 +96,15 @@ export default function KnowledgeBase() {
     try {
       if (editingArticle) {
         await updateArticle(editingArticle.id, articleForm);
+        toast.success('Article updated successfully!');
       } else {
         await createArticle(articleForm);
+        toast.success('Article created successfully!');
       }
       setShowArticleModal(false);
       fetchArticles();
     } catch (err) {
-      alert('Error saving article: ' + err.message);
+      toast.error('Error saving article: ' + err.message);
     }
   };
 
@@ -119,8 +125,9 @@ export default function KnowledgeBase() {
       try {
         await deleteTag(tag.id);
         fetchTags();
+        toast.success('Tag deleted successfully!');
       } catch (err) {
-        alert('Error deleting tag: ' + err.message);
+        toast.error('Error deleting tag: ' + err.message);
       }
     }
   };
@@ -130,13 +137,15 @@ export default function KnowledgeBase() {
     try {
       if (editingTag) {
         await updateTag(editingTag.id, tagForm);
+        toast.success('Tag updated successfully!');
       } else {
         await createTag(tagForm);
+        toast.success('Tag created successfully!');
       }
       setShowTagModal(false);
       fetchTags();
     } catch (err) {
-      alert('Error saving tag: ' + err.message);
+      toast.error('Error saving tag: ' + err.message);
     }
   };
 
@@ -154,16 +163,16 @@ export default function KnowledgeBase() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Tabs */}
-      <div className="flex border-b">
+      <div className="flex border-b border-gray-200 dark:border-gray-600">
         <button
           onClick={() => setActiveTab('articles')}
-          className={`px-4 py-2 ${activeTab === 'articles' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+          className={`px-4 py-2 transition-colors ${activeTab === 'articles' ? 'border-b-2 border-primary text-primary dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
         >
           Articles
         </button>
         <button
           onClick={() => setActiveTab('tags')}
-          className={`px-4 py-2 ${activeTab === 'tags' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+          className={`px-4 py-2 transition-colors ${activeTab === 'tags' ? 'border-b-2 border-primary text-primary dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
         >
           Tags
         </button>
@@ -173,7 +182,7 @@ export default function KnowledgeBase() {
       {activeTab === 'articles' && (
         <>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h1 className="text-2xl font-bold text-gray-900">Knowledge Base Articles</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Knowledge Base Articles</h1>
             <button
               onClick={handleCreateArticle}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition"
@@ -183,60 +192,109 @@ export default function KnowledgeBase() {
             </button>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Title', 'Author', 'Views', 'Public', 'Tags', 'Actions'].map(h => (
-                    <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {articles.map((article) => (
-                  <tr key={article.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{article.title}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{userMap[article.author_id] || article.author_id}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{article.views || 0}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        article.is_public ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {article.is_public ? 'Public' : 'Private'}
+          {settings.kb_view_mode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {articles.map((article) => (
+                <div key={article.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md dark:hover:shadow-lg transition">
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 line-clamp-2">{article.title}</h3>
+                    <div className="flex gap-2 ml-2">
+                      <button
+                        onClick={() => handleEditArticle(article)}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                        title="Edit"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteArticle(article)}
+                        className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    <span>By {userMap[article.author_id] || article.author_id}</span>
+                    <span>{article.views || 0} views</span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      article.is_public ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                    }`}>
+                      {article.is_public ? 'Public' : 'Private'}
+                    </span>
+                  </div>
+                  {settings.show_article_previews && (
+                    <div className="text-sm text-gray-700 dark:text-gray-300 mb-3 line-clamp-3">
+                      {article.content.replace(/<[^>]*>/g, '').substring(0, 150)}...
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {article.tags?.map(tag => (
+                      <span key={tag.id} className="inline-block bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded">
+                        {tag.name}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      {article.tags?.map(tag => (
-                        <span key={tag.id} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1">
-                          {tag.name}
-                        </span>
-                      ))}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEditArticle(article)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteArticle(article)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    {['Title', 'Author', 'Views', 'Public', 'Tags', 'Actions'].map(h => (
+                      <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                  {articles.map((article) => (
+                    <tr key={article.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{article.title}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{userMap[article.author_id] || article.author_id}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{article.views || 0}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          article.is_public ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                        }`}>
+                          {article.is_public ? 'Public' : 'Private'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {article.tags?.map(tag => (
+                          <span key={tag.id} className="inline-block bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded mr-1">
+                            {tag.name}
+                          </span>
+                        ))}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditArticle(article)}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteArticle(article)}
+                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 
@@ -244,7 +302,7 @@ export default function KnowledgeBase() {
       {activeTab === 'tags' && (
         <>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h1 className="text-2xl font-bold text-gray-900">Knowledge Base Tags</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Knowledge Base Tags</h1>
             <button
               onClick={handleCreateTag}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition"
@@ -254,42 +312,42 @@ export default function KnowledgeBase() {
             </button>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   {['Name', 'Color', 'Actions'].map(h => (
-                    <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
                 {tags.map((tag) => (
-                  <tr key={tag.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{tag.name}</td>
+                  <tr key={tag.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{tag.name}</td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex items-center gap-2">
                         <div
                           className="w-4 h-4 rounded"
                           style={{ backgroundColor: tag.color }}
                         ></div>
-                        {tag.color}
+                        <span className="text-gray-700 dark:text-gray-300">{tag.color}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEditTag(tag)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
                           title="Edit"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteTag(tag)}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -307,31 +365,31 @@ export default function KnowledgeBase() {
       {/* Article Modal */}
       {showArticleModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">{editingArticle ? 'Edit Article' : 'Add Article'}</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">{editingArticle ? 'Edit Article' : 'Add Article'}</h2>
             <form onSubmit={handleArticleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Title</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
                 <input
                   type="text"
                   required
                   value={articleForm.title}
                   onChange={e => setArticleForm({ ...articleForm, title: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-primary focus:border-primary placeholder-gray-500 dark:placeholder-gray-400"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Content</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Content</label>
                 <textarea
                   required
                   rows={6}
                   value={articleForm.content}
                   onChange={e => setArticleForm({ ...articleForm, content: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-primary focus:border-primary placeholder-gray-500 dark:placeholder-gray-400"
                 />
               </div>
               <div>
-                <label className="flex items-center">
+                <label className="flex items-center text-gray-700 dark:text-gray-300">
                   <input
                     type="checkbox"
                     checked={articleForm.is_public}
@@ -342,12 +400,12 @@ export default function KnowledgeBase() {
                 </label>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Tags</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tags</label>
                 <select
                   multiple
                   value={articleForm.tags}
                   onChange={e => setArticleForm({ ...articleForm, tags: Array.from(e.target.selectedOptions, option => option.value) })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-primary focus:border-primary"
                 >
                   {tags.map(tag => (
                     <option key={tag.id} value={tag.id}>{tag.name}</option>
@@ -364,7 +422,7 @@ export default function KnowledgeBase() {
                 <button
                   type="button"
                   onClick={() => setShowArticleModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                  className="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500"
                 >
                   Cancel
                 </button>
@@ -377,26 +435,26 @@ export default function KnowledgeBase() {
       {/* Tag Modal */}
       {showTagModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold mb-4">{editingTag ? 'Edit Tag' : 'Add Tag'}</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">{editingTag ? 'Edit Tag' : 'Add Tag'}</h2>
             <form onSubmit={handleTagSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
                 <input
                   type="text"
                   required
                   value={tagForm.name}
                   onChange={e => setTagForm({ ...tagForm, name: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-primary focus:border-primary placeholder-gray-500 dark:placeholder-gray-400"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Color</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Color</label>
                 <input
                   type="color"
                   value={tagForm.color}
                   onChange={e => setTagForm({ ...tagForm, color: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 focus:outline-none focus:ring-primary focus:border-primary"
                 />
               </div>
               <div className="flex gap-3 pt-4">
@@ -409,7 +467,7 @@ export default function KnowledgeBase() {
                 <button
                   type="button"
                   onClick={() => setShowTagModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                  className="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500"
                 >
                   Cancel
                 </button>
