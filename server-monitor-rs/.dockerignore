@@ -1,0 +1,18 @@
+# Exclude VCS data
+.git
+**/.git
+
+# Editor/IDE
+.vscode
+.idea
+*.iml
+
+# Rust build outputs
+/target
+/debug
+/release
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
