@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { getSettings, updateSettings } from '../api/settings.js';
 
@@ -36,7 +36,10 @@ export function SettingsProvider({ children }) {
     const fetchSettings = async () => {
       try {
         const userSettings = await getSettings();
-        setSettings(userSettings);
+        setSettings(prevSettings => ({
+          ...prevSettings,
+          ...userSettings
+        }));
       } catch (error) {
         console.error('Failed to fetch settings:', error);
         toast.error('Failed to load settings');
@@ -47,7 +50,7 @@ export function SettingsProvider({ children }) {
     };
 
     fetchSettings();
-  }, []);
+  }, []); // Only run once on mount
 
   const updateSetting = (key, value) => {
     setSettings(prev => ({
@@ -59,7 +62,10 @@ export function SettingsProvider({ children }) {
   const saveSettings = async (newSettings) => {
     try {
       const response = await updateSettings(newSettings);
-      setSettings(response);
+      setSettings(prev => ({
+        ...prev,
+        ...response
+      }));
       toast.success('Settings saved successfully');
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -68,12 +74,13 @@ export function SettingsProvider({ children }) {
     }
   };
 
-  const value = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const value = useMemo(() => ({
     settings,
     loading,
     updateSetting,
     saveSettings
-  };
+  }), [settings, loading]);
 
   return (
     <SettingsContext.Provider value={value}>

@@ -4,6 +4,7 @@ import { getConversationMessages, sendConversationMessage, getTicketMessages, se
 import { getCurrentUser, getUser } from '../api/users.js';
 import { useWebSocket } from '../contexts/WebSocketContext.jsx';
 import { useSettings } from '../contexts/SettingsContext.jsx';
+import { encryptMessage, decryptMessage } from '../utils/encryption';
 
 const ChatInterface = ({ conversation, onBack }) => {
   const [messages, setMessages] = useState([]);
@@ -200,12 +201,12 @@ const ChatInterface = ({ conversation, onBack }) => {
       setSending(true);
       const messageData = conversation.type === 'ticket'
         ? {
-            content: newMessage.trim(),
+            content: encryptMessage(newMessage.trim()),
             ticket_id: typeof conversation.ticket_id === 'object' ? conversation.ticket_id.id : conversation.ticket_id,
             author_id: currentUser.id
           }
         : {
-            content: newMessage.trim(),
+            content: encryptMessage(newMessage.trim()),
             sender_id: currentUser.id,
             message_type: 'text'
           };
@@ -222,7 +223,8 @@ const ChatInterface = ({ conversation, onBack }) => {
       const optimisticMessage = {
         ...sentMessage,
         id: `temp-${Date.now()}`, // Temporary ID to avoid conflicts
-        isOptimistic: true // Mark as optimistic
+        isOptimistic: true, // Mark as optimistic
+        content: newMessage.trim() // Keep plain text for optimistic UI
       };
       setMessages(prev => [...prev, optimisticMessage]);
       // Ensure the UI scrolls to the latest message as soon as we add one
@@ -409,7 +411,7 @@ const ChatInterface = ({ conversation, onBack }) => {
                           : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600'
                       }`}
                     >
-                      <p className="text-sm">{message.content}</p>
+                      <p className="text-sm">{decryptMessage(message.content)}</p>
                     </div>
 
                     <div className={`text-xs text-gray-500 dark:text-gray-400 mt-1 px-3 flex items-center justify-between ${

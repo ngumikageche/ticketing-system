@@ -13,7 +13,8 @@ class Ticket(BaseModel):
     status_changed_at = db.Column(db.DateTime(timezone=True), nullable=True)  # Track when status last changed
     requester_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=True)  # Optional for external requesters
     requester_name = db.Column(db.String(200), nullable=True)  # For external requesters (e.g., company name or phone contact)
-    assignee_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('users.id'))
+    assignee_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=True)
+    module_id = db.Column(PG_UUID(as_uuid=True), db.ForeignKey('modules.id'), nullable=True)  # Optional module association
 
     # Relationships
     requester = db.relationship('User', foreign_keys=[requester_id], back_populates='requested_tickets')
@@ -24,9 +25,20 @@ class Ticket(BaseModel):
     media = db.relationship('Media', back_populates='ticket', cascade='all, delete-orphan')
     conversation = db.relationship('Conversation', back_populates='ticket', uselist=False)
     testing = db.relationship('Testing', back_populates='ticket', cascade='all, delete-orphan')
+    module = db.relationship('Module', back_populates='tickets')
 
     __table_args__ = (
         db.Index('ix_tickets_status', 'status'),
         db.Index('ix_tickets_priority', 'priority'),
         db.Index('ix_tickets_created', 'created_at'),
     )
+
+    def to_dict(self, exclude=None, include=None):
+        """Convert ticket to dict, including module information"""
+        data = super().to_dict(exclude=exclude, include=include)
+        # Add module information if it exists
+        if self.module:
+            data['module'] = self.module.to_dict()
+        else:
+            data['module'] = None
+        return data

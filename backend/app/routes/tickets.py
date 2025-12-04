@@ -57,6 +57,13 @@ def create_ticket():
         requester_id = None
         requester_name = data['requester_name']
 
+    assignee_id = data.get('assignee_id')
+    if assignee_id == '':
+        assignee_id = None
+    module_id = data.get('module_id')
+    if module_id == '':
+        module_id = None
+
     ticket = Ticket(
         ticket_id=data.get('ticket_id') or f"#{uuid.uuid4().hex[:8]}",
         subject=data.get('subject'),
@@ -65,7 +72,8 @@ def create_ticket():
         priority=data.get('priority', 'MEDIUM'),
         requester_id=requester_id,
         requester_name=requester_name,
-        assignee_id=data.get('assignee_id'),
+        assignee_id=assignee_id,
+        module_id=module_id
     )
     ticket.save()
     # Associate any provided media ids with this ticket
@@ -114,9 +122,12 @@ def update_ticket(id_):
     t = _get_or_404(Ticket, id_)
     data = request.get_json() or {}
     status_changed = 'status' in data and data['status'] != t.status
-    for field in ('subject', 'description', 'status', 'priority', 'assignee_id'):
+    for field in ('subject', 'description', 'status', 'priority', 'assignee_id', 'module_id'):
         if field in data:
-            setattr(t, field, data[field])
+            value = data[field]
+            if field in ('assignee_id', 'module_id') and value == '':
+                value = None
+            setattr(t, field, value)
     if status_changed:
         from datetime import datetime, timezone
         t.status_changed_at = datetime.utcnow().replace(tzinfo=timezone.utc)

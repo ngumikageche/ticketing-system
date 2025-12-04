@@ -49,15 +49,19 @@ export default function Layout() {
 
   const effectiveTheme = getEffectiveTheme();
 
-  // Apply theme to document immediately when settings change
+  // Apply theme to document root based on current user's settings
   useEffect(() => {
     const root = document.documentElement;
     const effectiveTheme = getEffectiveTheme();
 
+    // Remove any existing theme classes
+    root.classList.remove('light', 'dark');
+
+    // Apply the effective theme
     if (effectiveTheme === 'dark') {
       root.classList.add('dark');
     } else {
-      root.classList.remove('dark');
+      root.classList.add('light');
     }
   }, [settings.theme]);
 
@@ -67,10 +71,11 @@ export default function Layout() {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const handleChange = () => {
         const root = document.documentElement;
+        root.classList.remove('light', 'dark');
         if (mediaQuery.matches) {
           root.classList.add('dark');
         } else {
-          root.classList.remove('dark');
+          root.classList.add('light');
         }
       };
 
@@ -95,6 +100,7 @@ export default function Layout() {
     '/settings': 'Settings',
   };
 
+  // Apply theme to container div instead of document root
   return (
     <div className={`flex h-screen ${settings.compact_mode ? 'text-sm' : ''} bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200`}>
       <Sidebar

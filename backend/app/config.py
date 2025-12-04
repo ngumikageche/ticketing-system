@@ -63,3 +63,13 @@ class Config:
 
     # Redis configuration
     REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
+    # Readiness configuration
+    # When True, the /ready endpoint will verify database connectivity.
+    # When False, /ready will only report API availability (no DB check),
+    # which fits setups where this service communicates via REST and
+    # should not be gated on direct DB access.
+    READINESS_REQUIRE_DB = os.getenv('READINESS_REQUIRE_DB', 'False').lower() in ('true', '1')
+
+    # Monitoring metrics API key (used to authenticate /api/monitoring/system)
+    METRICS_API_KEY = os.getenv('METRICS_API_KEY')

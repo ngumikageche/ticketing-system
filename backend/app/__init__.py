@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+from sqlalchemy import text
 import logging
 try:
     from flask_migrate import Migrate
@@ -141,6 +142,15 @@ def create_app():
     else:
         app.redis_client = None
 
+    # Initialize monitoring worker
+    try:
+        from .monitoring import init_monitoring_worker
+        monitoring_worker = init_monitoring_worker(app)
+        app.monitoring_worker = monitoring_worker
+    except Exception:
+        app.logger.exception("Failed to initialize monitoring worker")
+        app.monitoring_worker = None
+
     # Configure HTTP CORS for the Flask application. Flask-CORS will add the
     # appropriate Access-Control-* headers to responses and automatically
     # handle OPTIONS preflight responses. We rely on Flask-CORS instead of
@@ -149,10 +159,34 @@ def create_app():
     CORS(app,
          origins=ALLOWED_ORIGINS,
          supports_credentials=True,
-         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+         allow_headers=[
+             "Content-Type",
+             "Authorization",
+             "X-Requested-With",
+             "X-Metrics-Key",
+             "X-API-Key",
+         ],
          methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
          expose_headers=["Access-Control-Allow-Origin"],
          automatic_options=True)
+
+    # Liveness probe: returns 200 if the app is up
+    @app.route('/health', methods=['GET'])
+    def health():
+        return jsonify({'status': 'ok'}), 200
+
+    # Readiness probe: checks API availability and (optionally) DB connectivity
+    @app.route('/ready', methods=['GET'])
+    def ready():
+        require_db = app.config.get('READINESS_REQUIRE_DB', False)
+        if not require_db:
+            # API-only readiness: do not gate on DB
+            return jsonify({'status': 'ok', 'db': 'skipped'}), 200
+        try:
+            db.session.execute(text('SELECT 1'))
+            return jsonify({'status': 'ok', 'db': 'ok'}), 200
+        except Exception:
+            return jsonify({'status': 'degraded', 'db': 'error'}), 503
 
     # Add CORS debugging: lightweight logging for preflight and cross-origin
     # requests. This does not modify response headers; Flask-CORS is responsible
@@ -181,6 +215,8 @@ def create_app():
         from .routes.testing import testing_bp
         from .routes.uploads import uploads_bp
         from .routes.settings import settings_bp
+        from .routes.monitoring import monitoring_bp
+        from .routes.modules import modules_bp
         app.register_blueprint(auth_bp, url_prefix='/api/auth')
         app.register_blueprint(tickets_bp, url_prefix='/api/tickets')
         app.register_blueprint(kb_bp, url_prefix='/api/kb')
@@ -194,6 +230,8 @@ def create_app():
         app.register_blueprint(testing_bp, url_prefix='/api/testing')
         app.register_blueprint(uploads_bp, url_prefix='/api/uploads')
         app.register_blueprint(settings_bp, url_prefix='/api/settings')
+        app.register_blueprint(monitoring_bp, url_prefix='/api/monitoring')
+        app.register_blueprint(modules_bp, url_prefix='/api/modules')
     except Exception:
         # Surface import / registration errors so they are visible in development
         logging.exception("Failed to import blueprints for app; blueprints won't be registered")

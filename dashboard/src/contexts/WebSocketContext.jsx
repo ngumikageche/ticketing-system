@@ -35,16 +35,20 @@ export const WebSocketProvider = ({ children }) => {
     } catch (error) {
       console.error('Failed to poll notifications:', error);
     }
-  }, [authUser]);
+  }, [authUser?.id]); // Only depend on user ID to prevent recreation
 
   useEffect(() => {
     let newSocket = null;
     let connectionTimeout = null;
+
+    // Only setup WebSocket if we have a stable authenticated user
+    if (!authUser || authLoading) {
+      return;
+    }
+
     // Load initial notifications and current user
     const loadInitialData = async () => {
       try {
-        // If no authenticated user yet, skip loading
-        if (!authUser) return;
         const notificationsData = await getNotifications();
         // Filter notifications to ensure they belong to current user
         const filteredNotifications = notificationsData.filter(n => n.user_id === authUser.id);
@@ -55,234 +59,231 @@ export const WebSocketProvider = ({ children }) => {
       }
     };
 
-    // Load data and then attempt WebSocket connection if we have a logged-in user
-  (async () => {
-      // Only load and connect if the authenticated user is available
-      if (!authUser || authLoading) return;
+    // Setup WebSocket connection
+    const setupWebSocket = async () => {
       await loadInitialData();
 
-    // Try to connect to WebSocket server (skip in production if not configured)
-    const isProduction = import.meta.env.PROD;
-    const wsUrl = import.meta.env.VITE_WS_BASE || 'http://localhost:5000';
-    
-    // In production, skip WebSocket and use polling only
-    if (isProduction && wsUrl.includes('sapi.nextek.co.ke')) {
-      console.log('[WEBSOCKET] Production environment detected, using polling only');
-      setIsConnected(false);
-      if (!pollingInterval) {
-        const interval = setInterval(pollNotifications, 30000);
-        setPollingInterval(interval);
-      }
-      return;
-    }
+      // Try to connect to WebSocket server (skip in production if not configured)
+      const isProduction = import.meta.env.PROD;
+      const wsUrl = import.meta.env.VITE_WS_BASE || 'http://localhost:5000';
 
-  newSocket = io(wsUrl, {
-      withCredentials: true,
-      transports: ['websocket', 'polling'],
-      timeout: 5000, // 5 second timeout
-      reconnection: true,
-      reconnectionAttempts: 3
-    });
-
-  // connectionTimeout will be set below
-
-    // Connection events
-    newSocket.on('connect', () => {
-      console.log('[WEBSOCKET] Connected to WebSocket server');
-      setIsConnected(true);
-      
-      // Clear polling when WebSocket connects
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-        setPollingInterval(null);
-      }
-
-      // Join relevant rooms for targeted updates
-      console.log('[WEBSOCKET] Joining rooms: tickets, comments, users, kb, attachments, messages');
-      newSocket.emit('join', { room: 'tickets' });
-      newSocket.emit('join', { room: 'comments' });
-      newSocket.emit('join', { room: 'users' });
-      newSocket.emit('join', { room: 'kb' });
-      newSocket.emit('join', { room: 'attachments' });
-      newSocket.emit('join', { room: 'messages' });
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('[WEBSOCKET] Disconnected from WebSocket server, falling back to polling');
-      setIsConnected(false);
-      
-      // Start polling as fallback
-      if (!pollingInterval) {
-        const interval = setInterval(pollNotifications, 30000); // Poll every 30 seconds
-        setPollingInterval(interval);
-      }
-    });
-
-    // Connection timeout - fallback to polling
-  connectionTimeout = setTimeout(() => {
-      if (!isConnected) {
-        console.log('WebSocket connection timeout, using polling fallback');
+      // In production, skip WebSocket and use polling only
+      if (isProduction && wsUrl.includes('sapi.nextek.co.ke')) {
+        console.log('[WEBSOCKET] Production environment detected, using polling only');
         setIsConnected(false);
         if (!pollingInterval) {
           const interval = setInterval(pollNotifications, 30000);
           setPollingInterval(interval);
         }
+        return;
       }
-    }, 5000);
 
-    // Handle webhook notifications with enhanced payload
-    newSocket.on('notification', (payload) => {
-      try {
-        const processed = processWebhookPayload(payload);
-        
-        // Only add notifications that belong to the current user
-        if (authUser && processed.notification.user_id === authUser.id) {
-          console.log('Received webhook notification for current user:', {
-            id: processed.notification.id,
-            message: processed.notification.message,
-            related_type: processed.notification.related_type
-          });
+      newSocket = io(wsUrl, {
+        withCredentials: true,
+        transports: ['websocket', 'polling'],
+        timeout: 5000, // 5 second timeout
+        reconnection: true,
+        reconnectionAttempts: 3
+      });
 
-          // Add to notifications list
-          setNotifications(prev => [processed.notification, ...prev]);
-
-          // Store entity data for real-time updates
-          if (processed.data && processed.notification.related_type) {
-            setRealtimeData(prev => ({
-              ...prev,
-              [processed.notification.related_type]: {
-                ...prev[processed.notification.related_type],
-                [processed.data.id]: processed.data
-              }
-            }));
+      // Connection timeout - fallback to polling
+      connectionTimeout = setTimeout(() => {
+        if (!isConnected) {
+          console.log('WebSocket connection timeout, using polling fallback');
+          setIsConnected(false);
+          if (!pollingInterval) {
+            const interval = setInterval(pollNotifications, 30000);
+            setPollingInterval(interval);
           }
-
-          // Show browser notification if permission granted
-          if (Notification.permission === 'granted') {
-            new Notification(processed.notification.message);
-          }
-        } else {
-          console.log('Ignoring notification for different user:', processed.notification.user_id, 'current user:', authUser?.id);
         }
-      } catch (error) {
-        console.error('Failed to process webhook payload:', error);
-      }
-    });
+      }, 5000);
 
-    // Entity-specific update events
-    newSocket.on('ticket.update', (payload) => {
-      const { data } = payload;
-      console.log('Ticket updated:', data);
-      setRealtimeData(prev => ({
-        ...prev,
-        ticket: {
-          ...prev.ticket,
-          [data.id]: data
+      // Connection events
+      newSocket.on('connect', () => {
+        console.log('[WEBSOCKET] Connected to WebSocket server');
+        setIsConnected(true);
+
+        // Clear polling when WebSocket connects
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
         }
-      }));
-    });
 
-    newSocket.on('comment.update', (payload) => {
-      const { data } = payload;
-      console.log('Comment updated:', data);
-      setRealtimeData(prev => ({
-        ...prev,
-        comment: {
-          ...prev.comment,
-          [data.id]: data
+        // Join relevant rooms for targeted updates
+        console.log('[WEBSOCKET] Joining rooms: tickets, comments, users, kb, attachments, messages');
+        newSocket.emit('join', { room: 'tickets' });
+        newSocket.emit('join', { room: 'comments' });
+        newSocket.emit('join', { room: 'users' });
+        newSocket.emit('join', { room: 'kb' });
+        newSocket.emit('join', { room: 'attachments' });
+        newSocket.emit('join', { room: 'messages' });
+      });
+
+      newSocket.on('disconnect', () => {
+        console.log('[WEBSOCKET] Disconnected from WebSocket server, falling back to polling');
+        setIsConnected(false);
+
+        // Start polling as fallback
+        if (!pollingInterval) {
+          const interval = setInterval(pollNotifications, 30000); // Poll every 30 seconds
+          setPollingInterval(interval);
         }
-      }));
-    });
+      });
 
-    // Listen for user updates (backend emits 'user.update')
-    newSocket.on('user.update', (payload) => {
-      const { data } = payload;
-      console.log('User updated:', data);
-      setRealtimeData(prev => ({
-        ...prev,
-        user: {
-          ...prev.user,
-          [data.id]: data
-        }
-      }));
-    });
+      // Handle webhook notifications with enhanced payload
+      newSocket.on('notification', (payload) => {
+        try {
+          const processed = processWebhookPayload(payload);
 
-    newSocket.on('kb.article.created', (payload) => {
-      const { data } = payload;
-      console.log('KB article created:', data);
-      setRealtimeData(prev => ({
-        ...prev,
-        kb: {
-          ...prev.kb,
-          [data.id]: data
-        }
-      }));
-    });
+          // Only add notifications that belong to the current user
+          if (authUser && processed.notification.user_id === authUser.id) {
+            console.log('Received webhook notification for current user:', {
+              id: processed.notification.id,
+              message: processed.notification.message,
+              related_type: processed.notification.related_type
+            });
 
-    newSocket.on('attachment.added', (payload) => {
-      const { data } = payload;
-      console.log('Attachment added:', data);
-      setRealtimeData(prev => ({
-        ...prev,
-        attachment: {
-          ...prev.attachment,
-          [data.id]: data
-        }
-      }));
-    });
+            // Add to notifications list
+            setNotifications(prev => [processed.notification, ...prev]);
 
-    // Message events: backend emits 'message.update' for created/updated messages
-    newSocket.on('message.update', (payload) => {
-      console.log('[WEBSOCKET] Received message.update event:', payload);
-      const { data } = payload;
-      console.log('Message updated/created:', data);
-      setRealtimeData(prev => ({
-        ...prev,
-        message: {
-          ...prev.message,
-          [data.id]: data
-        }
-      }));
-
-      // Simple debug toast using the Notification API so you can verify
-      // messages arrive in other browsers without needing a refresh.
-      try {
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          const preview = (data.content || '').slice(0, 120);
-          new Notification('New message', { body: preview });
-        } else if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
-          Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-              const preview = (data.content || '').slice(0, 120);
-              new Notification('New message', { body: preview });
+            // Store entity data for real-time updates
+            if (processed.data && processed.notification.related_type) {
+              setRealtimeData(prev => ({
+                ...prev,
+                [processed.notification.related_type]: {
+                  ...prev[processed.notification.related_type],
+                  [processed.data.id]: processed.data
+                }
+              }));
             }
-          });
+
+            // Show browser notification if permission granted
+            if (Notification.permission === 'granted') {
+              new Notification(processed.notification.message);
+            }
+          } else {
+            console.log('Ignoring notification for different user:', processed.notification.user_id, 'current user:', authUser?.id);
+          }
+        } catch (error) {
+          console.error('Failed to process webhook payload:', error);
         }
-      } catch (err) {
-        console.warn('Browser notifications not available:', err);
-      }
-    });
+      });
 
-    newSocket.on('conversation.update', (payload) => {
-      const { data } = payload;
-      console.log('Conversation updated:', data);
-      setRealtimeData(prev => ({
-        ...prev,
-        conversation: {
-          ...prev.conversation,
-          [data.id]: data
+      // Entity-specific update events
+      newSocket.on('ticket.update', (payload) => {
+        const { data } = payload;
+        console.log('Ticket updated:', data);
+        setRealtimeData(prev => ({
+          ...prev,
+          ticket: {
+            ...prev.ticket,
+            [data.id]: data
+          }
+        }));
+      });
+
+      newSocket.on('comment.update', (payload) => {
+        const { data } = payload;
+        console.log('Comment updated:', data);
+        setRealtimeData(prev => ({
+          ...prev,
+          comment: {
+            ...prev.comment,
+            [data.id]: data
+          }
+        }));
+      });
+
+      // Listen for user updates (backend emits 'user.update')
+      newSocket.on('user.update', (payload) => {
+        const { data } = payload;
+        console.log('User updated:', data);
+        setRealtimeData(prev => ({
+          ...prev,
+          user: {
+            ...prev.user,
+            [data.id]: data
+          }
+        }));
+      });
+
+      newSocket.on('kb.article.created', (payload) => {
+        const { data } = payload;
+        console.log('KB article created:', data);
+        setRealtimeData(prev => ({
+          ...prev,
+          kb: {
+            ...prev.kb,
+            [data.id]: data
+          }
+        }));
+      });
+
+      newSocket.on('attachment.added', (payload) => {
+        const { data } = payload;
+        console.log('Attachment added:', data);
+        setRealtimeData(prev => ({
+          ...prev,
+          attachment: {
+            ...prev.attachment,
+            [data.id]: data
+          }
+        }));
+      });
+
+      // Message events: backend emits 'message.update' for created/updated messages
+      newSocket.on('message.update', (payload) => {
+        console.log('[WEBSOCKET] Received message.update event:', payload);
+        const { data } = payload;
+        console.log('Message updated/created:', data);
+        setRealtimeData(prev => ({
+          ...prev,
+          message: {
+            ...prev.message,
+            [data.id]: data
+          }
+        }));
+
+        // Simple debug toast using the Notification API so you can verify
+        // messages arrive in other browsers without needing a refresh.
+        try {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            const preview = (data.content || '').slice(0, 120);
+            new Notification('New message', { body: preview });
+          } else if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+              if (permission === 'granted') {
+                const preview = (data.content || '').slice(0, 120);
+                new Notification('New message', { body: preview });
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('Browser notifications not available:', err);
         }
-      }));
-    });
+      });
 
-    newSocket.on('notification.read', (data) => {
-      console.log('Notification marked as read:', data.id);
-      markNotificationAsRead(data.id);
-    });
+      newSocket.on('conversation.update', (payload) => {
+        const { data } = payload;
+        console.log('Conversation updated:', data);
+        setRealtimeData(prev => ({
+          ...prev,
+          conversation: {
+            ...prev.conversation,
+            [data.id]: data
+          }
+        }));
+      });
 
-    setSocket(newSocket);
-    // Close the IIFE and return cleanup
-    })();
+      newSocket.on('notification.read', (data) => {
+        console.log('Notification marked as read:', data.id);
+        markNotificationAsRead(data.id);
+      });
+
+      setSocket(newSocket);
+    };
+
+    setupWebSocket();
 
     return () => {
       if (connectionTimeout) clearTimeout(connectionTimeout);
@@ -291,7 +292,7 @@ export const WebSocketProvider = ({ children }) => {
         clearInterval(pollingInterval);
       }
     };
-  }, [authUser, authLoading, pollNotifications]);
+  }, [authUser?.id]); // Only depend on user ID to prevent frequent reconnections
 
   // Initial polling setup (in case WebSocket never connects)
   useEffect(() => {

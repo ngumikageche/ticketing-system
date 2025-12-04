@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import TicketModal from '../components/TicketModal';
 import TicketRow from '../components/TicketRow';
@@ -11,7 +11,9 @@ import { getAttachments, createAttachment, deleteAttachment } from '../api/attac
 import { uploadFileToCloudinary } from '../api/uploads.js';
 import { useRealtimeTickets, useRealtimeComments } from '../hooks/useRealtime';
 import { useSettings } from '../contexts/SettingsContext.jsx';
+import { getModules } from '../api/modules.js';
 import { toast } from 'react-hot-toast';
+import { encryptMessage, decryptMessage } from '../utils/encryption';
 
 const priorityOrder = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 const statusOptions = ['All', 'Open', 'In Progress', 'Closed'];
@@ -19,6 +21,7 @@ const priorityOptions = ['All', 'Urgent', 'High', 'Medium', 'Low'];
 
 export default function Tickets() {
   const [users, setUsers] = useState([]);
+  const [modules, setModules] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
@@ -39,43 +42,82 @@ export default function Tickets() {
   const { currentUser: authCurrentUser, loading: authLoading } = useAuth();
   const { settings } = useSettings();
   const [searchParams] = useSearchParams();
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Use real-time hooks
   const { tickets, loading: ticketsLoading, loadTickets } = useRealtimeTickets();
   const { comments, loading: commentsLoading, loadComments } = useRealtimeComments(viewTicket?.id);
+
+  // Show loading state while settings or auth are loading
+  if (authLoading || settings.loading) {
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="text-lg text-gray-600 dark:text-gray-400">Loading...</div>
+    </div>;
+  }
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const usersData = await getUsers();
         setUsers(usersData);
+        const modulesData = await getModules();
+        setModules(modulesData);
         // set current user from auth context when available
         if (!authLoading && authCurrentUser) setCurrentUser(authCurrentUser);
         // Load tickets using the real-time hook
         await loadTickets();
+        setInitialLoading(false);
       } catch (err) {
         setError(err.message);
+        setInitialLoading(false);
       }
     };
     fetchData();
   }, []);
 
-  // Auto-refresh tickets based on settings
-  useEffect(() => {
-    if (!settings.ticket_auto_refresh || settings.auto_refresh_interval <= 0) return;
+  // Auto-refresh tickets based on settings - use refs to prevent frequent re-renders
+  const refreshIntervalRef = useRef(null);
+  const settingsRef = useRef(settings);
 
-    const interval = setInterval(() => {
-      loadTickets();
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    if (!settings.ticket_auto_refresh || settings.auto_refresh_interval <= 0) {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Clear existing interval
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+    }
+
+    // Set new interval
+    refreshIntervalRef.current = setInterval(() => {
+      // Use ref to avoid stale closure issues
+      if (settingsRef.current.ticket_auto_refresh) {
+        loadTickets();
+      }
     }, settings.auto_refresh_interval * 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
   }, [settings.ticket_auto_refresh, settings.auto_refresh_interval, loadTickets]);
 
   const fetchTickets = async () => {
     await loadTickets();
   };
 
-  const handleCreateTicket = async (ticketData) => {
+  const handleCreateTicket = useCallback(async (ticketData) => {
     try {
       const created = await createTicket(ticketData);
       setShowModal(false);
@@ -95,9 +137,9 @@ export default function Tickets() {
     } catch (err) {
       toast.error('Error creating ticket: ' + err.message);
     }
-  };
+  }, [currentUser]);
 
-  const handleView = async (ticket) => {
+  const handleView = useCallback(async (ticket) => {
     setViewTicket(ticket);
     setShowViewModal(true);
     // Load comments for this ticket using real-time hook
@@ -110,9 +152,9 @@ export default function Tickets() {
       console.error('Failed to load ticket attachments', err);
       setTicketAttachments([]);
     }
-  };
+  }, [loadComments]);
 
-  const handleEdit = (ticket) => {
+  const handleEdit = useCallback((ticket) => {
     setEditTicket(ticket);
     setShowEditModal(true);
     // Preload attachments for editing
@@ -124,9 +166,9 @@ export default function Tickets() {
         setEditTicketAttachments([]);
       }
     })();
-  };
+  }, []);
 
-  const handleDelete = async (ticket) => {
+  const handleDelete = useCallback(async (ticket) => {
     if (window.confirm(`Are you sure you want to delete ticket "${ticket.subject}"?`)) {
       try {
         await deleteTicket(ticket.id);
@@ -136,9 +178,9 @@ export default function Tickets() {
         toast.error('Error deleting ticket: ' + err.message);
       }
     }
-  };
+  }, []);
 
-  const handleUpdateTicket = async (ticketData) => {
+  const handleUpdateTicket = useCallback(async (ticketData) => {
     try {
       const updated = await updateTicket(editTicket.id, ticketData);
       setShowEditModal(false);
@@ -159,14 +201,14 @@ export default function Tickets() {
     } catch (err) {
       toast.error('Error updating ticket: ' + err.message);
     }
-  };
+  }, [editTicket, currentUser]);
 
-  const handleAddComment = async (e) => {
+  const handleAddComment = useCallback(async (e) => {
     e.preventDefault();
     if (!newComment.content || !currentUser) return;
     try {
       await createComment({
-        content: newComment.content,
+        content: encryptMessage(newComment.content),
         ticket_id: viewTicket.id,
         author_id: currentUser.id
       });
@@ -176,9 +218,9 @@ export default function Tickets() {
     } catch (err) {
       toast.error('Error adding comment: ' + err.message);
     }
-  };
+  }, [newComment.content, currentUser, viewTicket]);
 
-  const handleAddAttachment = async (e) => {
+  const handleAddAttachment = useCallback(async (e) => {
     e.preventDefault();
     if (!currentUser || !viewTicket) return;
     try {
@@ -208,9 +250,9 @@ export default function Tickets() {
     } catch (err) {
       toast.error('Failed to add attachment: ' + err.message);
     }
-  };
+  }, [currentUser, viewTicket, attachmentFile, attachmentFilename, attachmentUrl, attachmentType]);
 
-  const handleDeleteAttachment = async (id) => {
+  const handleDeleteAttachment = useCallback(async (id) => {
     if (!window.confirm('Are you sure you want to delete this attachment?')) return;
     try {
       await deleteAttachment(id);
@@ -219,7 +261,7 @@ export default function Tickets() {
     } catch (err) {
       toast.error('Failed to delete attachment: ' + err.message);
     }
-  };
+  }, [ticketAttachments]);
 
   const userMap = useMemo(() => {
     const map = {};
@@ -259,97 +301,99 @@ export default function Tickets() {
     }
 
     return sorted;
-  }, [tickets, search, statusFilter, priorityFilter, settings.ticket_sort_order]);
+  }, [tickets, search, statusFilter, priorityFilter, settings.ticket_sort_order]); // Only depend on specific settings property
 
-  if (ticketsLoading) return <div>Loading...</div>;
+  if (initialLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <>
+      <div className="max-w-7xl mx-auto space-y-6">
 
-      {/* Header + New Ticket */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">All Tickets</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          <Plus className="w-5 h-5" />
-          New Ticket
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col md:flex-row gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
-          <input
-            type="text"
-            placeholder="Search tickets..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary placeholder-gray-500 dark:placeholder-gray-400"
-          />
+        {/* Header + New Ticket */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">All Tickets</h1>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            <Plus className="w-5 h-5" />
+            New Ticket
+          </button>
         </div>
 
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        {/* Filters */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search tickets..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary placeholder-gray-500 dark:placeholder-gray-400"
+            />
+          </div>
 
-        <select
-          value={priorityFilter}
-          onChange={e => setPriorityFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          {priorityOptions.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-      </div>
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
 
-      {/* Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                {['Ticket #', 'Subject', 'Requester', 'Status', 'Priority', 'Assignee', 'Actions'].map(h => (
-                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filtered.length === 0 ? (
+          <select
+            value={priorityFilter}
+            onChange={e => setPriorityFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {priorityOptions.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        </div>
+
+        {/* Table */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                    No tickets found.
-                  </td>
+                  {['Ticket #', 'Subject', 'Requester', 'Status', 'Priority', 'Assignee', 'Actions'].map(h => (
+                    <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ) : (
-                filtered.map(ticket => (
-                  <TicketRow key={ticket.id} ticket={ticket} userMap={userMap} onView={handleView} onEdit={handleEdit} onDelete={handleDelete} />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                      No tickets found.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map(ticket => (
+                    <TicketRow key={ticket.id} ticket={ticket} userMap={userMap} onView={handleView} onEdit={handleEdit} onDelete={handleDelete} />
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        {/* Pagination (mock) */}
-        <div className="px-6 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
-          <span>Showing 1 to {filtered.length} of {tickets.length} results</span>
-          <div className="flex gap-1">
-            <button className="px-3 py-1 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300">1</button>
-            <button disabled className="px-3 py-1 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-400 dark:text-gray-500">2</button>
+          {/* Pagination (mock) */}
+          <div className="px-6 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
+            <span>Showing 1 to {filtered.length} of {tickets.length} results</span>
+            <div className="flex gap-1">
+              <button className="px-3 py-1 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300">1</button>
+              <button disabled className="px-3 py-1 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-400 dark:text-gray-500">2</button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* New Ticket Modal */}
-      <TicketModal open={showModal} onClose={() => setShowModal(false)} onSubmit={handleCreateTicket} users={users} />
+      <TicketModal open={showModal} onClose={() => setShowModal(false)} onSubmit={handleCreateTicket} users={users} modules={modules} onModulesUpdate={setModules} />
 
       {/* View Ticket Modal */}
       {showViewModal && viewTicket && (
@@ -366,7 +410,7 @@ export default function Tickets() {
               <div className="space-y-4">
                 <div className="text-gray-900 dark:text-gray-100"><strong>ID:</strong> {viewTicket.ticket_id || viewTicket.id}</div>
                 <div className="text-gray-900 dark:text-gray-100"><strong>Subject:</strong> {viewTicket.subject}</div>
-                <div className="text-gray-900 dark:text-gray-100"><strong>Description:</strong> {viewTicket.description}</div>
+                <div className="text-gray-900 dark:text-gray-100"><strong>Description:</strong> {decryptMessage(viewTicket.description)}</div>
                 <div className="text-gray-900 dark:text-gray-100"><strong>Status:</strong> {viewTicket.status}</div>
                 <div className="text-gray-900 dark:text-gray-100"><strong>Priority:</strong> {viewTicket.priority}</div>
                 <div className="text-gray-900 dark:text-gray-100"><strong>Requester:</strong> {userMap[viewTicket.requester_id] || viewTicket.requester_name || viewTicket.requester_id}</div>
@@ -384,7 +428,7 @@ export default function Tickets() {
                           <strong className="text-gray-900 dark:text-gray-100">{userMap[comment.author_id] || comment.author_id}</strong>
                           <span className="text-sm text-gray-500 dark:text-gray-400">{new Date(comment.created_at || Date.now()).toLocaleString()}</span>
                         </div>
-                        <p className="text-gray-700 dark:text-gray-300">{comment.content}</p>
+                        <p className="text-gray-700 dark:text-gray-300">{decryptMessage(comment.content)}</p>
                       </div>
                     ))
                   )}
@@ -461,8 +505,10 @@ export default function Tickets() {
         mode="edit"
         ticket={editTicket}
         users={users}
+        modules={modules}
+        onModulesUpdate={setModules}
         attachments={editTicketAttachments}
       />
-    </div>
+    </>
   );
 }

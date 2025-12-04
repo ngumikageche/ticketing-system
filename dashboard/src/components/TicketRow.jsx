@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Eye, Edit, Trash2 } from 'lucide-react';
 
 const statusBadge = {
@@ -14,18 +15,18 @@ const priorityBadge = {
   Low: 'text-green-600 dark:text-green-400 font-medium',
 };
 
-export default function TicketRow({ ticket, userMap, onView, onEdit, onDelete }) {
+const TicketRow = ({ ticket, userMap, onView, onEdit, onDelete }) => {
   return (
     <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">{ticket.ticket_id || ticket.id}</td>
       <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{ticket.subject}</td>
       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{userMap[ticket.requester_id] || ticket.requester_name || ticket.requester_id}</td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusBadge[ticket.status] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'}`}>
+        <span className={"inline-flex px-2 py-1 text-xs font-semibold rounded-full " + (statusBadge[ticket.status] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300')}>
           {ticket.status}
         </span>
       </td>
-      <td className={`px-6 py-4 whitespace-nowrap text-sm ${priorityBadge[ticket.priority] || 'text-gray-600 dark:text-gray-400'}`}>
+      <td className={"px-6 py-4 whitespace-nowrap text-sm " + (priorityBadge[ticket.priority] || 'text-gray-600 dark:text-gray-400')}>
         {ticket.priority}
       </td>
       <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{userMap[ticket.assignee_id] || 'Unassigned'}</td>
@@ -56,4 +57,6 @@ export default function TicketRow({ ticket, userMap, onView, onEdit, onDelete })
       </td>
     </tr>
   );
-}
+};
+
+export default memo(TicketRow);

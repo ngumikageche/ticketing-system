@@ -1,0 +1,26 @@
+# Server Monitoring Worker Configuration
+# Copy this file and update with your generated credentials
+
+# API Configuration (Required)
+# These values are auto-generated when you create a monitor in the dashboard
+API_KEY = "your-generated-api-key-here"
+API_SECRET = "your-generated-api-secret-here"  # Optional
+
+# Monitor Configuration (Optional)
+# The monitor ID helps identify this server in the dashboard
+MONITOR_ID = "your-monitor-id-here"
+
+# Monitoring Configuration
+ENDPOINT_URL = "https://your-app-domain.com/api/monitoring/data"
+CHECK_INTERVAL = 60  # seconds between checks
+
+# Resources to monitor
+MONITORED_RESOURCES = ["cpu", "ram", "storage", "network"]
+
+# Alert thresholds (optional - for future use)
+ALERT_THRESHOLDS = {
+    "cpu": 80,      # CPU usage percentage
+    "ram": 85,      # RAM usage percentage
+    "storage": 90,  # Storage usage percentage
+    "network": 1000000000  # Network usage threshold (bytes/s)
+}

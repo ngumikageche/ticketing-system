@@ -1,4 +1,4 @@
-import { Home, Ticket, MessageCircle, BookOpen, BarChart3, Users, Settings as SettingsIcon, ChevronLeft, ChevronRight, X, FlaskConical, Bell } from 'lucide-react';
+import { Home, Ticket, MessageCircle, BookOpen, BarChart3, Users, Settings as SettingsIcon, ChevronLeft, ChevronRight, X, FlaskConical, Bell, Monitor } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useSettings } from '../contexts/SettingsContext.jsx';
@@ -10,6 +10,7 @@ const menu = [
   { label: 'Notifications', icon: Bell, path: '/notifications' },
   { label: 'Knowledge Base', icon: BookOpen, path: '/knowledge-base' },
   { label: 'Reports', icon: BarChart3, path: '/reports' },
+  { label: 'Monitoring', icon: Monitor, path: '/monitoring' },
   { label: 'Users', icon: Users, path: '/users' },
   { label: 'Testing', icon: FlaskConical, path: '/testing' },
   { label: 'Settings', icon: SettingsIcon, path: '/settings' },

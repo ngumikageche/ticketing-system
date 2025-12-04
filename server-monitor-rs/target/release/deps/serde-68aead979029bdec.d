@@ -1,0 +1,14 @@
+/home/future/support-ticketing-system/server-monitor-rs/target/release/deps/serde-68aead979029bdec.d: /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/future/support-ticketing-system/server-monitor-rs/target/release/build/serde-be35a5fc8ccfbf10/out/private.rs
+
+/home/future/support-ticketing-system/server-monitor-rs/target/release/deps/libserde-68aead979029bdec.rlib: /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/future/support-ticketing-system/server-monitor-rs/target/release/build/serde-be35a5fc8ccfbf10/out/private.rs
+
+/home/future/support-ticketing-system/server-monitor-rs/target/release/deps/libserde-68aead979029bdec.rmeta: /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/future/support-ticketing-system/server-monitor-rs/target/release/build/serde-be35a5fc8ccfbf10/out/private.rs
+
+/home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/future/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/home/future/support-ticketing-system/server-monitor-rs/target/release/build/serde-be35a5fc8ccfbf10/out/private.rs:
+
+# env-dep:OUT_DIR=/home/future/support-ticketing-system/server-monitor-rs/target/release/build/serde-be35a5fc8ccfbf10/out

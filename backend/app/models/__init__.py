@@ -16,3 +16,5 @@ from .media import *  # noqa: F401,F403
 from .kb import *  # noqa: F401,F403
 from .testing import *  # noqa: F401,F403
 from .message_read_status import *  # noqa: F401,F403
+from .server_monitor import *  # noqa: F401,F403
+from .module import *  # noqa: F401,F403
